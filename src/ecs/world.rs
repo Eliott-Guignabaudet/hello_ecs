@@ -1,8 +1,10 @@
+use std::cell::RefCell;
 /// code from article:
 /// https://medium.com/@jordangrilly/building-an-ecs-2-entity-management-ids-generations-and-recycling-99e289633dfb 
 
 
 use std::collections::VecDeque;
+use crate::ecs::component::ComponentVec;
 use crate::ecs::entity::Entity;
 
 pub struct World {
@@ -10,6 +12,7 @@ pub struct World {
     generations: Vec<u32>,
     free_ids: VecDeque<u32>,
     alive_count: usize,
+    component_vecs: Vec<Box<dyn ComponentVec>>,
 }
 
 impl World {
@@ -19,6 +22,7 @@ impl World {
             generations: Vec::new(),
             free_ids: VecDeque::new(),
             alive_count: 0,
+            component_vecs: Vec::new(),
         }
     }
     
@@ -33,7 +37,12 @@ impl World {
         
         if id as usize >= self.generations.len(){ 
             self.generations.resize(id as usize + 1, 0);
-        }
+            for component_vec in self.component_vecs.iter_mut() {
+                component_vec.push_none();
+            }
+        } 
+        
+        
         
         let generation = self.generations[id as usize];
         self.alive_count += 1;
@@ -66,5 +75,40 @@ impl World {
         
         id < self.generations.len() 
             && self.generations[id] == entity.generation
+    }
+
+
+    fn add_component_to_entity<ComponentType: 'static>(
+        &mut self,
+        entity: Entity,
+        component: ComponentType,
+    ) {
+        if !self.is_alive(entity) { 
+            return;
+        }
+        // Search for any existing ComponentVecs that match the type of the component being added.
+        for component_vec in self.component_vecs.iter_mut() {
+            if let Some(component_vec) = component_vec
+                .as_any_mut()
+                .downcast_mut::<RefCell<Vec<Option<ComponentType>>>>()
+            {
+                component_vec.borrow_mut()[entity.id as usize] = Some(component);
+                return;
+            }
+        }
+
+        // No matching component storage exists yet, so we have to make one.
+        let mut new_component_vec: Vec<Option<ComponentType>> =
+            Vec::with_capacity(self.generations.len());
+
+        // All existing entities don't have this component, so we give them `None`
+        for _ in 0..self.generations.len() {
+            new_component_vec.push(None);
+        }
+
+        // Give this Entity the Component.
+        new_component_vec[entity.id as usize] = Some(component);
+        self.component_vecs
+            .push(Box::new(RefCell::new(new_component_vec)));
     }
 }
