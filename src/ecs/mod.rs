@@ -1,4 +1,10 @@
 mod component;
 mod system;
-pub mod entity;
+mod entity;
 mod world;
+
+
+pub use world::World;
+pub use system::*;
+pub use component::ComponentVec;
+pub use entity::Entity;

@@ -83,7 +83,7 @@ impl World {
     }
 
 
-    fn add_component_to_entity<ComponentType: 'static>(
+    pub fn add_component_to_entity<ComponentType: 'static>(
         &mut self,
         entity: Entity,
         component: ComponentType,
@@ -118,7 +118,7 @@ impl World {
     }
 
 
-    fn borrow_component_vec_mut<ComponentType: 'static>(
+    pub fn borrow_component_vec_mut<ComponentType: 'static>(
         &self,
     ) -> Option<RefMut<Vec<Option<ComponentType>>>> {
         for component_vec in self.component_vecs.iter() {
