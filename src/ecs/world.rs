@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 /// code from article:
 /// https://medium.com/@jordangrilly/building-an-ecs-2-entity-management-ids-generations-and-recycling-99e289633dfb 
 
@@ -62,6 +62,11 @@ impl World {
         }
         
         self.generations[id] = self.generations[id].wrapping_add(1);
+
+        // When entity is deleted, all it's components are set to none
+        self.component_vecs.iter_mut().for_each(|component_vec| {
+           component_vec.set_none(id);
+        });
         
         self.free_ids.push_back(entity.id);
         self.alive_count -=1;
@@ -110,5 +115,20 @@ impl World {
         new_component_vec[entity.id as usize] = Some(component);
         self.component_vecs
             .push(Box::new(RefCell::new(new_component_vec)));
+    }
+
+
+    fn borrow_component_vec_mut<ComponentType: 'static>(
+        &self,
+    ) -> Option<RefMut<Vec<Option<ComponentType>>>> {
+        for component_vec in self.component_vecs.iter() {
+            if let Some(component_vec) = component_vec
+                .as_any()
+                .downcast_ref::<RefCell<Vec<Option<ComponentType>>>>()
+            {
+                return Some(component_vec.borrow_mut());
+            }
+        }
+        None
     }
 }
