@@ -15,7 +15,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::WindowId;
+use winit::window::{Window, WindowId};
 use crate::renderer::constants::{VALIDATION_LAYER};
 
 pub const MAX_FRAME_LATENCY: usize = 3;
@@ -87,8 +87,6 @@ pub struct RenderApp {
     pub surface_loader: khr::surface::Instance,
     pub swapchain_loader: swapchain::Device,
     pub debug_utils_loader: debug_utils::Instance,
-    pub window: Option<winit::window::Window>,
-    pub event_loop: RefCell<EventLoop<()>>,
     pub frame_index: RefCell<usize>,
 
     pub pdevice: vk::PhysicalDevice,
@@ -120,19 +118,9 @@ pub struct RenderApp {
 }
 
 impl RenderApp {
+    pub fn create(window: &Window, event_loop: &ActiveEventLoop) -> anyhow::Result<Self>{
 
 
-
-    pub fn create() -> anyhow::Result<Self>{
-
-        let event_loop = EventLoop::new()?;
-        let window_attributes = winit::window::Window::default_attributes()
-            .with_title("Hello ECS - Example")
-            .with_inner_size(winit::dpi::LogicalSize::new(
-                f64::from(1280),
-                f64::from(720),
-            ));
-        let window: Option<winit::window::Window> = Some(event_loop.create_window(window_attributes)?);
         let entry = Entry::linked();
         let application_name = c"My App";
         let engine_name = c"Hello ECS";
@@ -206,7 +194,7 @@ impl RenderApp {
                 &entry,
                 &instance,
                 event_loop.display_handle()?.as_raw(),
-                window.as_ref().unwrap().window_handle()?.as_raw(),
+                window.window_handle()?.as_raw(),
                 None)
         }.unwrap();
 
@@ -502,7 +490,6 @@ impl RenderApp {
         });
         Ok(Self {
             frame_index: RefCell::new(0),
-            event_loop: RefCell::new(event_loop),
             entry,
             instance,
             debug_callback,
@@ -510,7 +497,6 @@ impl RenderApp {
             queue_family_index,
             pdevice,
             device_memory_properties,
-            window,
             surface_loader,
             surface_format,
             present_queue,
@@ -535,60 +521,6 @@ impl RenderApp {
         })
     }
 }
-
-impl ApplicationHandler for RenderApp {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window_attributes = winit::window::Window::default_attributes()
-            .with_title("Hello ECS - Example")
-            .with_inner_size(winit::dpi::LogicalSize::new(
-                f64::from(1280),
-                f64::from(720),
-            ));
-        self.window = Some(event_loop.create_window(window_attributes).unwrap());
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
-                event:
-                KeyEvent {
-                    state: ElementState::Pressed,
-                    logical_key: Key::Named(NamedKey::Escape),
-                    ..
-                },
-                ..
-            } => {
-                println!("The close button was pressed; stopping");
-                event_loop.exit();
-            },
-            WindowEvent::RedrawRequested => {
-
-                self.window.as_ref().unwrap().request_redraw();
-            }
-            _ => (),
-        }
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        let mut frame_index = self.frame_index.borrow_mut();
-
-        // The fence from 3 frames ago, that will also be signaled this frame
-        let draw_commands_reuse_fence =
-            self.draw_commands_reuse_fences[*frame_index % MAX_FRAME_LATENCY];
-        unsafe {
-            self.device
-                .wait_for_fences(&[draw_commands_reuse_fence], true, u64::MAX)
-        }
-            .expect("Wait for fence failed.");
-
-        unsafe { self.device.reset_fences(&[draw_commands_reuse_fence]) }
-            .expect("Reset fences failed.");
-
-        //f(*frame_index);
-        *frame_index += 1;
-    }
-}
-
 
 unsafe extern "system" fn vulkan_debug_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
