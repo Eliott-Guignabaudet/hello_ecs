@@ -2,7 +2,6 @@ mod ecs;
 mod transform;
 mod renderer;
 
-use std::fmt::{Display};
 use nalgebra::{Point3, Quaternion, Vector3};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
@@ -17,6 +16,8 @@ fn main() {
     let mut world = World::new();
     create_entities(&mut world);
     print_transforms(&world);
+
+    let _render_app = renderer::RenderApp::create();
 
     println!("Hello, ecs!");
 

@@ -17,7 +17,6 @@ impl<T: 'static> ComponentVec for RefCell<Vec<Option<T>>> {
     }
 
     fn push_none(&mut self) {
-        let test = self.get_mut();
         self.get_mut().push(None);
     }
     fn set_none(&mut self, id: usize) {
