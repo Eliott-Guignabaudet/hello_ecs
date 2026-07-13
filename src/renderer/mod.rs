@@ -1,6 +1,6 @@
-﻿mod app;
-mod constants;
+﻿mod constants;
+mod app;
+#[path = "core-renderer.rs"]
+mod core_renderer;
 
-pub use app::Renderer;
-pub use app::find_memorytype_index;
-pub use app::MAX_FRAME_LATENCY;
+pub use app::RenderApp;
