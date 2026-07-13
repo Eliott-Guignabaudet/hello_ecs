@@ -2,7 +2,6 @@ mod ecs;
 mod transform;
 mod renderer;
 
-use std::cell::RefCell;
 use std::io::Cursor;
 use std::mem::offset_of;
 use ash::util::{read_spv, Align};
@@ -16,7 +15,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Theme, Window, WindowId};
-use crate::renderer::{find_memorytype_index, RenderApp, MAX_FRAME_LATENCY};
+use crate::renderer::{find_memorytype_index, Renderer, MAX_FRAME_LATENCY};
 
 const ENTITIES_TO_SPAWN: u32 = 20;
 #[derive(Clone, Debug, Copy)]
@@ -77,7 +76,7 @@ struct App {
     idx: usize,
     window_id: Option<WindowId>,
     window: Option<Window>,
-    render_app: Option<RenderApp>,
+    renderer: Option<Renderer>,
     render_data: Option<RenderData>
 }
 
@@ -87,12 +86,12 @@ impl App {
             idx: 1,
             window: None,
             window_id: None,
-            render_app: None,
+            renderer: None,
             render_data: None,
         })
     }
 
-    fn draw(image_index: usize, render_app: &RenderApp, render_data: &RenderData) {
+    fn draw(image_index: usize, render_app: &Renderer, render_data: &RenderData) {
         let present_complete_semaphore =
             render_app.present_complete_semaphores[image_index % MAX_FRAME_LATENCY];
         let draw_commands_reuse_fence =
@@ -203,11 +202,11 @@ impl ApplicationHandler for App {
             .with_title("My first ECS App")
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
         let window = event_loop.create_window(window_attributes).unwrap();
-        let render_app = RenderApp::create(&window, &event_loop).unwrap();
+        let render_app = Renderer::create(&window, &event_loop).unwrap();
         let render_data = RenderData::new(&render_app).unwrap();
         self.window_id = Some(window.id());
         self.window = Some(window);
-        self.render_app = Some(render_app);
+        self.renderer = Some(render_app);
         self.render_data = Some(render_data);
     }
     fn window_event(
@@ -231,7 +230,7 @@ impl ApplicationHandler for App {
             None => return,
         };
 
-        let render_app = match self.render_app.as_mut() {
+        let render_app = match self.renderer.as_mut() {
             Some(render_app) => render_app,
             None => return,
         };
@@ -278,11 +277,11 @@ struct RenderData {
     viewports: [vk::Viewport; 1],
     scissors: [vk::Rect2D; 1],
     graphic_pipeline: Pipeline,
-    
+
 }
 
 impl RenderData {
-    pub fn new(render_app: &RenderApp) -> anyhow::Result<Self>{
+    pub fn new(render_app: &Renderer) -> anyhow::Result<Self>{
         unsafe {
             let renderpass_attachments = [
                 vk::AttachmentDescription {

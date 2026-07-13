@@ -76,7 +76,7 @@ pub fn record_submit_commandbuffer<F: FnOnce(&Device, vk::CommandBuffer)>(
     }
 }
 
-pub struct RenderApp {
+pub struct Renderer {
     pub entry: Entry,
     pub instance: Instance,
     pub debug_callback: vk::DebugUtilsMessengerEXT,
@@ -114,7 +114,7 @@ pub struct RenderApp {
     pub draw_commands_reuse_fences: [vk::Fence; MAX_FRAME_LATENCY],
 }
 
-impl RenderApp {
+impl Renderer {
     pub fn draw<F: Fn(usize)>(&self, f:F){
         let mut frame_index = self.frame_index.borrow_mut();
 
