@@ -11,10 +11,7 @@ use ash::{khr, vk, Device, Entry, Instance};
 use ash::ext::debug_utils;
 use ash::khr::swapchain;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 use crate::renderer::constants::{VALIDATION_LAYER};
 
@@ -118,6 +115,25 @@ pub struct RenderApp {
 }
 
 impl RenderApp {
+    pub fn draw<F: Fn(usize)>(&self, f:F){
+        let mut frame_index = self.frame_index.borrow_mut();
+
+        // The fence from 3 frames ago, that will also be signaled this frame
+        let draw_commands_reuse_fence =
+            self.draw_commands_reuse_fences[*frame_index % MAX_FRAME_LATENCY];
+        unsafe {
+            self.device
+                .wait_for_fences(&[draw_commands_reuse_fence], true, u64::MAX)
+        }
+            .expect("Wait for fence failed.");
+
+        unsafe { self.device.reset_fences(&[draw_commands_reuse_fence]) }
+            .expect("Reset fences failed.");
+
+        f(*frame_index);
+        *frame_index += 1;
+    }
+
     pub fn create(window: &Window, event_loop: &ActiveEventLoop) -> anyhow::Result<Self>{
 
 
@@ -259,10 +275,16 @@ impl RenderApp {
 
         let present_queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
-        let surface_format = unsafe {
+        let surface_formats = unsafe {
             surface_loader
                 .get_physical_device_surface_formats(pdevice, surface)
-        }?[0];
+        }?;
+
+        let surface_format = surface_formats.iter().cloned().find(|f| {
+            f.format == vk::Format::B8G8R8A8_SRGB
+                && f.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
+        }).unwrap_or_else(|| surface_formats[0]);
+
 
         let surface_capabilities = unsafe {
             surface_loader
