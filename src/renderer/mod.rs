@@ -23,14 +23,14 @@ use instance::RenderInstance;
 use surface::RenderSurface;
 use device::RenderDevice;
 use swapchain::RenderSwapchain;
+use render_pass::RenderPass;
 
 pub struct HelloRenderer {
     instance: RenderInstance,
     surface: RenderSurface,
     device: RenderDevice,
     swapchain: RenderSwapchain,
-    
-    
+    render_pass: RenderPass,
 }
 
 impl HelloRenderer {
@@ -52,11 +52,21 @@ impl HelloRenderer {
             &device.swapchain_support,
         )?;
         
+        let render_pass = RenderPass::new(
+            &instance.instance,
+            &device.device,
+            device.physical_device,
+            swapchain.format,
+            swapchain.extent,
+            device.msaa_samples,
+        )?;
+        
         Ok(Self { 
             instance, 
             surface,
             device,
             swapchain,
+            render_pass,
         })
     }
 }

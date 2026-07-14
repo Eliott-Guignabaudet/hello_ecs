@@ -103,7 +103,7 @@ impl QueueFamilyIndices {
 
 pub struct RenderDevice{
     pub device: Device,
-    physical_device: vk::PhysicalDevice,
+    pub physical_device: vk::PhysicalDevice,
     
     pub queue_family_indices: QueueFamilyIndices,
     pub swapchain_support: SwapchainSupport,
