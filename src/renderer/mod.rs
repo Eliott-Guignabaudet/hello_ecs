@@ -14,6 +14,8 @@ mod uniform_buffer;
 mod descriptor;
 mod render_pass;
 mod image;
+mod graphic_pipeline;
+mod vertex;
 
 use std::error::Error;
 pub use app::RenderApp;
@@ -24,6 +26,7 @@ use surface::RenderSurface;
 use device::RenderDevice;
 use swapchain::RenderSwapchain;
 use render_pass::RenderPass;
+use crate::renderer::graphic_pipeline::GraphicsPipeline;
 
 pub struct HelloRenderer {
     instance: RenderInstance,
@@ -31,6 +34,7 @@ pub struct HelloRenderer {
     device: RenderDevice,
     swapchain: RenderSwapchain,
     render_pass: RenderPass,
+    graphics_pipeline: GraphicsPipeline,
 }
 
 impl HelloRenderer {
@@ -61,12 +65,23 @@ impl HelloRenderer {
             device.msaa_samples,
         )?;
         
+        let graphics_pipeline = GraphicsPipeline::new(
+            &device.device,
+            swapchain.extent,
+            render_pass.render_pass,
+            vertex::Vertex::binding_description(),
+            vertex::Vertex::attribute_descriptions(),
+            device.msaa_samples,
+            swapchain.images.len() as u32,
+        )?;
+        
         Ok(Self { 
             instance, 
             surface,
             device,
             swapchain,
             render_pass,
+            graphics_pipeline,
         })
     }
 }

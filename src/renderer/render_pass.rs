@@ -3,7 +3,7 @@ use ash::{vk, Device, Instance};
 use crate::renderer::image::ImageHandle;
 
 pub struct RenderPass {
-    render_pass: vk::RenderPass,
+    pub render_pass: vk::RenderPass,
     color_image: ImageHandle,
     depth: ImageHandle,
 }
