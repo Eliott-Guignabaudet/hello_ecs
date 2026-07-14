@@ -102,20 +102,25 @@ impl QueueFamilyIndices {
 
 
 pub struct RenderDevice{
-    device: Device,
+    pub device: Device,
     physical_device: vk::PhysicalDevice,
+    
+    pub queue_family_indices: QueueFamilyIndices,
+    pub swapchain_support: SwapchainSupport,
 
-    graphics_queue: vk::Queue,
-    present_queue: vk::Queue,
-    transfer_queue: vk::Queue,
+    pub graphics_queue: vk::Queue,
+    pub present_queue: vk::Queue,
+    pub transfer_queue: vk::Queue,
 
-    msaa_samples: vk::SampleCountFlags,
+    pub msaa_samples: vk::SampleCountFlags,
+    
+    
 }
 
 impl RenderDevice {
     pub fn new(
         entry: &Entry,
-        instance: &ash::Instance,
+        instance: &Instance,
         surface: vk::SurfaceKHR,
         surface_loader: &surface::Instance,
     ) -> Result<Self, Box<dyn Error>> {
@@ -123,14 +128,15 @@ impl RenderDevice {
         let (physical_device, msaa_samples) =
             Self::pick_physical_device(instance, surface, surface_loader)?;
 
-        let (device, indices) = Self::create_logical_device(
+        let (device, queue_family_indices) = Self::create_logical_device(
             entry,
             instance,
             surface,
             physical_device,
             surface_loader)?;
 
-        let (graphics_queue, present_queue, transfer_queue) = Self::get_device_queues(&device, indices)?;
+        let (graphics_queue, present_queue, transfer_queue) = Self::get_device_queues(&device, queue_family_indices)?;
+        let swapchain_support = SwapchainSupport::get(instance, surface, physical_device, surface_loader)?;
 
 
         Ok(Self {
@@ -139,8 +145,9 @@ impl RenderDevice {
             graphics_queue,
             present_queue,
             transfer_queue,
-            msaa_samples
-
+            msaa_samples,
+            queue_family_indices,
+            swapchain_support
         })
     }
 

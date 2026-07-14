@@ -4,8 +4,8 @@ use ash::khr::surface;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 pub struct RenderSurface {
-    handle: vk::SurfaceKHR,
-    loader: surface::Instance,
+    pub surface: vk::SurfaceKHR,
+    pub surface_loader: surface::Instance,
 }
 
 impl RenderSurface {
@@ -15,7 +15,7 @@ impl RenderSurface {
         window: &winit::window::Window
     ) -> Result<Self, Box<dyn Error>> {
 
-        let handle = unsafe {
+        let surface = unsafe {
             ash_window::create_surface(
                 &entry,
                 &instance,
@@ -24,10 +24,10 @@ impl RenderSurface {
                 None)
         }.unwrap();
 
-        let loader = khr::surface::Instance::new(&entry, &instance);
+        let surface_loader = khr::surface::Instance::new(&entry, &instance);
         Ok(Self{
-            handle,
-            loader,
+            surface,
+            surface_loader,
         })
     }
 }
