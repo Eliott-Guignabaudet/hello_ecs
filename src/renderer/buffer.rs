@@ -1,7 +1,6 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
-
-
+use crate::renderer::command::{begin_single_time_commands, end_single_time_commands};
 
 pub fn create_buffer(
     instance: &Instance,
@@ -36,6 +35,26 @@ pub fn create_buffer(
 
     Ok((buffer, buffer_memory))
 }
+
+pub fn copy_buffer(
+    device: &Device,
+    queue: vk::Queue,
+    command_pool: vk::CommandPool,
+    source: vk::Buffer,
+    destination: vk::Buffer,
+    size: vk::DeviceSize,
+) -> anyhow::Result<()> {
+
+    let command_buffer = begin_single_time_commands(device, command_pool)?;
+
+    let regions = vk::BufferCopy::default().size(size);
+    unsafe { device.cmd_copy_buffer(command_buffer, source, destination, &[regions]); }
+
+    end_single_time_commands(device, queue, command_pool, command_buffer)?;
+
+    Ok(())
+}
+
 
 
 pub fn get_memory_type_index(

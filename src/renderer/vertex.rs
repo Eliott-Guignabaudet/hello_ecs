@@ -1,5 +1,5 @@
 use ash::vk;
-use nalgebra::Vector3;
+use nalgebra::{Vector2, Vector3};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -7,11 +7,11 @@ pub struct Vertex {
     pub pos: Vector3<f32>,
     pub normal: Vector3<f32>,
     pub color: Vector3<f32>,
-    pub tex_coord: Vector3<f32>,
+    pub tex_coord: Vector2<f32>,
 }
 
 impl Vertex {
-    pub const fn new(pos: Vector3<f32>, normal: Vector3<f32>, color: Vector3<f32>, tex_coord: Vector3<f32>) -> Self {
+    pub const fn new(pos: Vector3<f32>, normal: Vector3<f32>, color: Vector3<f32>, tex_coord: Vector2<f32>) -> Self {
         Self { pos, normal, color, tex_coord }
     }
 

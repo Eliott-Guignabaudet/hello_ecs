@@ -16,6 +16,8 @@ mod render_pass;
 mod image;
 mod graphic_pipeline;
 mod vertex;
+mod model;
+mod command;
 
 use std::error::Error;
 pub use app::RenderApp;
