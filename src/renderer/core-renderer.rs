@@ -10,7 +10,7 @@ use std::ffi::c_char;
 use ash::{khr, vk, Device, Entry, Instance};
 use ash::ext::debug_utils;
 use ash::khr::swapchain;
-use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+use raw_window_handle::{DisplayHandle, HasDisplayHandle, HasWindowHandle};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
 use crate::renderer::constants::{VALIDATION_LAYER};
@@ -134,7 +134,7 @@ impl CoreRenderer {
         *frame_index += 1;
     }
 
-    pub fn create(window: &Window, event_loop: &ActiveEventLoop) -> anyhow::Result<Self>{
+    pub fn create(window: &Window, display_handle: DisplayHandle) -> anyhow::Result<Self>{
 
 
         let entry = Entry::linked();
@@ -147,7 +147,7 @@ impl CoreRenderer {
             .collect();
 
         let mut extension_names =
-            ash_window::enumerate_required_extensions(event_loop.display_handle()?.as_raw())
+            ash_window::enumerate_required_extensions(display_handle.as_raw())
                 .unwrap()
                 .to_vec();
         extension_names.push(debug_utils::NAME.as_ptr());
@@ -209,7 +209,7 @@ impl CoreRenderer {
             ash_window::create_surface(
                 &entry,
                 &instance,
-                event_loop.display_handle()?.as_raw(),
+                display_handle.as_raw(),
                 window.window_handle()?.as_raw(),
                 None)
         }.unwrap();

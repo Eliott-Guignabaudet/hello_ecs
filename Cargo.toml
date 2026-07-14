@@ -11,3 +11,5 @@ ash-window = "0.13.0"
 raw-window-handle = "0.6.2"
 anyhow = "1.0.103"
 winit = { version = "0.30.13", features = ["rwh_06"] }
+thiserror = "2.0.18"
+log = "0.4.33"

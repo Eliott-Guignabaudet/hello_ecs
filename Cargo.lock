@@ -494,8 +494,10 @@ dependencies = [
  "ash",
  "ash-window",
  "itertools",
+ "log",
  "nalgebra",
  "raw-window-handle",
+ "thiserror 2.0.18",
  "winit",
 ]
 

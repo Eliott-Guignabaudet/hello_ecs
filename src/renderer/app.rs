@@ -3,6 +3,7 @@ use std::mem::offset_of;
 use ash::util::{read_spv, Align};
 use ash::{vk, Device};
 use ash::vk::{Pipeline, RenderPass};
+use raw_window_handle::HasDisplayHandle;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -140,7 +141,7 @@ impl ApplicationHandler for RenderApp {
             .with_title("My first ECS App")
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
         let window = event_loop.create_window(window_attributes).unwrap();
-        let render_app = CoreRenderer::create(&window, &event_loop).unwrap();
+        let render_app = CoreRenderer::create(&window, event_loop.display_handle().unwrap()).unwrap();
         let render_data = RenderData::new(&render_app).unwrap();
         self.window_id = Some(window.id());
         self.window = Some(window);

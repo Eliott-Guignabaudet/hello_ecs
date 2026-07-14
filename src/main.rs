@@ -8,7 +8,9 @@ use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::multizip;
 use winit::application::ApplicationHandler;
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::window::WindowId;
 
 const ENTITIES_TO_SPAWN: u32 = 20;
 #[derive(Clone, Debug, Copy)]
@@ -62,6 +64,20 @@ fn main() -> anyhow::Result<()>{
     println!("Hello World");
 
     Ok(())
+}
+
+struct App {
+
+}
+
+impl ApplicationHandler for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        todo!()
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+        todo!()
+    }
 }
 
 
