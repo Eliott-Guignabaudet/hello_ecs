@@ -195,7 +195,7 @@ impl Model{
     
 }
 
-fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> anyhow::Result<(Vec<Vertex>, Vec<u32>)> {
+fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> Result<(Vec<Vertex>, Vec<u32>), Box<dyn Error>> {
     let mut reader = BufReader::new(File::open(path)?);
 
     let (models, _) = tobj::load_obj_buf(
@@ -206,8 +206,6 @@ fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> anyhow::Result<
 
     let mut vertices = vec![];
     let mut indices = vec![];
-    //let mut unique_vertices = HashMap::new();
-    //let correction = nalgebra::Matrix4::from_angle_x(Rad(std::f32::consts::FRAC_PI_2));
     
     for model in &models {
 

@@ -1,9 +1,10 @@
+use std::error::Error;
 use ash::{vk, Device};
 
 pub fn begin_single_time_commands(
     device: &Device,
     command_pool: vk::CommandPool,
-) -> anyhow::Result<vk::CommandBuffer> {
+) -> Result<vk::CommandBuffer, Box<dyn Error>> {
     let info = vk::CommandBufferAllocateInfo::default()
         .level(vk::CommandBufferLevel::PRIMARY)
         .command_pool(command_pool)
@@ -24,7 +25,7 @@ pub fn end_single_time_commands(
     queue: vk::Queue,
     command_pool: vk::CommandPool,
     command_buffer: vk::CommandBuffer,
-) -> anyhow::Result<()> {
+) -> Result<(), Box<dyn Error>> {
     unsafe { device.end_command_buffer(command_buffer)?; }
 
     let command_buffers = &[command_buffer];

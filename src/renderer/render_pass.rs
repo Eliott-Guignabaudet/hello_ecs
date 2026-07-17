@@ -1,6 +1,8 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
+use ash::vk::Format;
 use crate::renderer::image::ImageHandle;
+use crate::renderer::VulkanError;
 
 pub struct RenderPass {
     pub render_pass: vk::RenderPass,
@@ -167,7 +169,7 @@ impl RenderPass {
     fn get_depth_format(
         instance: &Instance,
         physical_device: vk::PhysicalDevice,
-    )-> anyhow::Result<vk::Format> {
+    )-> Result<vk::Format, Box<dyn Error>> {
         let candidates = &[
             vk::Format::D32_SFLOAT,
             vk::Format::D32_SFLOAT_S8_UINT,
@@ -189,10 +191,10 @@ impl RenderPass {
         candidates: &[vk::Format],
         tiling: vk::ImageTiling,
         features: vk::FormatFeatureFlags,
-    ) -> anyhow::Result<vk::Format> {
+    ) -> Result<vk::Format, Box<dyn Error>> {
 
         unsafe {
-            candidates
+           let result = candidates
                 .iter()
                 .cloned()
                 .find(|f| {
@@ -205,8 +207,12 @@ impl RenderPass {
                         vk::ImageTiling::OPTIMAL => properties.optimal_tiling_features.contains(features),
                         _ => false,
                     }
-                })
-                .ok_or_else(|| anyhow::anyhow!("Failed to find supported format!"))
+                });
+            
+            match result {
+                Some(f) => Ok(f),
+                None => Err(Box::new(VulkanError("Failed to find supported format".to_string())))
+            }
 
         }
     }

@@ -1,3 +1,4 @@
+use std::error::Error;
 use ash::{vk, Device};
 
 pub fn create_image_view(
@@ -6,7 +7,7 @@ pub fn create_image_view(
     format: vk::Format,
     aspects: vk::ImageAspectFlags,
     mip_levels: u32,
-) -> anyhow::Result<vk::ImageView> {
+) -> Result<vk::ImageView, Box<dyn Error>> {
     let subresource_range = vk::ImageSubresourceRange::default()
         .aspect_mask(aspects)
         .base_mip_level(0)

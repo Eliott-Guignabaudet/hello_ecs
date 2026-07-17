@@ -6,6 +6,7 @@ use ash::{vk, Device, Instance};
 use crate::renderer::buffer::{copy_buffer_to_image, create_buffer};
 use crate::renderer::command::{begin_single_time_commands, end_single_time_commands};
 use crate::renderer::image::ImageHandle;
+use crate::renderer::VulkanError;
 
 pub struct Texture{
     pub texture: ImageHandle,
@@ -186,14 +187,14 @@ impl Texture {
         mip_levels: u32,
         queue: vk::Queue,
         command_pool: vk::CommandPool,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Box<dyn Error>> {
         unsafe {
             if !instance
                 .get_physical_device_format_properties(physical_device, format)
                 .optimal_tiling_features
                 .contains(vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR)
             {
-                return Err(anyhow::anyhow!("Texture image format does not support linear blitting!"));
+                return Err(Box::new(VulkanError("Texture image format does not support linear blitting!".to_string())));
             }
         }
 
@@ -344,7 +345,7 @@ fn transition_image_layout(
     mip_levels: u32,
     queue: vk::Queue,
     command_pool: vk::CommandPool,
-) -> anyhow::Result<()> {
+) -> Result<(), Box<dyn Error>> {
 
     let aspect_mask = if new_layout == vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL {
         match format {
@@ -375,7 +376,7 @@ fn transition_image_layout(
             vk::PipelineStageFlags::TRANSFER,
             vk::PipelineStageFlags::FRAGMENT_SHADER,
         ),
-        _ => return Err(anyhow::anyhow!("Unsupported image layout transition!")),
+        _ => return Err(Box::new(VulkanError("Unsupported image layout transition!".to_string()))),
     };
 
     let command_buffer = begin_single_time_commands(device, command_pool)?;

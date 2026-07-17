@@ -309,7 +309,7 @@ impl RenderDevice {
     fn get_device_queues(
         device: &Device,
         indices: QueueFamilyIndices,
-    ) -> anyhow::Result<(vk::Queue, vk::Queue, vk::Queue)> {
+    ) -> Result<(vk::Queue, vk::Queue, vk::Queue), Box<dyn Error>> {
         let graphic_queue = unsafe { device.get_device_queue(indices.graphics, 0) };
         let present_queue = unsafe { device.get_device_queue(indices.present, 0) };
         let transfer_queue = unsafe { device.get_device_queue(indices.transfer, 0) };

@@ -165,7 +165,7 @@ impl HelloRenderer {
                     graphics_pipeline.descriptor_pool,
                 )
             })
-            .collect::<anyhow::Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
         let mut frame_syncs = vec![];
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
             frame_syncs.push(FrameSync::new(&device.device)?);
