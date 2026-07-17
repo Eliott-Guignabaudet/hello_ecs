@@ -405,17 +405,18 @@ fn record_draw_command(
         .clear_values(clear_values);
 
     unsafe { device.device.cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE); }
-    unsafe { device.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, render_pipeline.pipeline); }
     unsafe {
         device.device.cmd_bind_descriptor_sets(
             command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             render_pipeline.pipeline_layout,
             0,
-            &[frame_resources.descriptor_set, frame_resources.descriptor_set],
+            &[frame_resources.descriptor_set, ],
             &[],
         );
     }
+
+    unsafe { device.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, render_pipeline.pipeline); }
 
     unsafe {
         device.device.cmd_bind_descriptor_sets(
@@ -430,7 +431,7 @@ fn record_draw_command(
     unsafe { device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[model.vertex_buffer], &[0]); }
     unsafe { device.device.cmd_bind_index_buffer(command_buffer, model.index_buffer, 0, vk::IndexType::UINT32); }
     
-    unsafe { device.device.cmd_draw_indexed(command_buffer, model.index_count * size_of::<u32>() as u32, 1, 0, 0, 0); }
+    unsafe { device.device.cmd_draw_indexed(command_buffer, model.index_count, 1, 0, 0, 0); }
     unsafe { device.device.cmd_end_render_pass(command_buffer); }
 
     unsafe { device.device.end_command_buffer(command_buffer)?; }
