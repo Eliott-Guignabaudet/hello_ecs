@@ -1,6 +1,7 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
 use crate::renderer::command::{begin_single_time_commands, end_single_time_commands};
+use crate::renderer::VulkanError;
 
 pub fn create_buffer(
     instance: &Instance,
@@ -9,7 +10,7 @@ pub fn create_buffer(
     size: vk::DeviceSize,
     usage: vk::BufferUsageFlags,
     properties: vk::MemoryPropertyFlags,
-) -> anyhow::Result<(vk::Buffer, vk::DeviceMemory)> {
+) -> Result<(vk::Buffer, vk::DeviceMemory), Box<dyn Error>> {
 
     let buffer_info = vk::BufferCreateInfo::default()
         .size(size)
@@ -43,7 +44,7 @@ pub fn copy_buffer(
     source: vk::Buffer,
     destination: vk::Buffer,
     size: vk::DeviceSize,
-) -> anyhow::Result<()> {
+) -> Result<(), Box<dyn Error>> {
 
     let command_buffer = begin_single_time_commands(device, command_pool)?;
 
@@ -63,7 +64,7 @@ pub fn copy_buffer_to_image(
     height: u32,
     queue: vk::Queue,
     command_pool: vk::CommandPool,
-) -> anyhow::Result<()> {
+) -> Result<(), Box<dyn Error>> {
     let command_buffer = begin_single_time_commands(device, command_pool)?;
 
     let subresource = vk::ImageSubresourceLayers::default()
@@ -101,13 +102,17 @@ pub fn get_memory_type_index(
     physical_device: vk::PhysicalDevice,
     properties: vk::MemoryPropertyFlags,
     requirements: vk::MemoryRequirements,
-) -> anyhow::Result<u32> {
+) -> Result<u32, Box<dyn Error>> {
     let memory = unsafe { instance.get_physical_device_memory_properties(physical_device) };
-    (0..memory.memory_type_count)
+    let result = (0..memory.memory_type_count)
         .find(|i| {
             let suitable = (requirements.memory_type_bits & (1 << i)) != 0;
             let memory_type = memory.memory_types[*i as usize];
             suitable && memory_type.property_flags.contains(properties)
-        })
-        .ok_or_else(|| anyhow::anyhow!("Failed to find suitable memory type."))
+        });
+    match result {
+        Some(v) => Ok(v),
+        None => Err(Box::new( VulkanError("Failed to find suitable memory type.".to_string()))),
+    }
+        
 }

@@ -1,3 +1,4 @@
+use std::error::Error;
 use ash::{vk, Device};
 
 pub fn create_descriptor_set(
@@ -8,7 +9,7 @@ pub fn create_descriptor_set(
     uniform_buffer_size: u64,
     texture_image_view: vk::ImageView,
     texture_sampler: vk::Sampler,
-) -> anyhow::Result<(vk::DescriptorSet)>{
+) -> Result<(vk::DescriptorSet), Box<dyn Error>>{
     let layouts = vec![descriptor_set_layout; 1];
     let info = vk::DescriptorSetAllocateInfo::default()
         .descriptor_pool(descriptor_pool)
