@@ -29,7 +29,7 @@ impl GraphicsPipeline {
             device,
             swapchain_extent,
             render_pass,
-            &[descriptor_set_layout],
+            &[descriptor_set_layout, descriptor_set_layout],
             vertex_binding_description,
             vertex_attribute_descriptions,
             msaa_samples,
@@ -37,7 +37,7 @@ impl GraphicsPipeline {
         
         let descriptor_pool = Self::create_descriptor_pool(
             device,
-            swapchain_image_count
+            swapchain_image_count * 2
         )?;
         
         Ok(Self{

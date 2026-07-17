@@ -7,8 +7,6 @@ pub fn create_descriptor_set(
     descriptor_pool: vk::DescriptorPool,
     uniform_buffer: vk::Buffer,
     uniform_buffer_size: u64,
-    texture_image_view: vk::ImageView,
-    texture_sampler: vk::Sampler,
 ) -> Result<(vk::DescriptorSet), Box<dyn Error>>{
     let layouts = vec![descriptor_set_layout; 1];
     let info = vk::DescriptorSetAllocateInfo::default()
@@ -16,7 +14,7 @@ pub fn create_descriptor_set(
         .set_layouts(&layouts);
 
     let descriptor_set = unsafe { device.allocate_descriptor_sets(&info) }?[0];
-
+    
     let info = vk::DescriptorBufferInfo::default()
         .buffer(uniform_buffer)
         .offset(0)
@@ -29,7 +27,21 @@ pub fn create_descriptor_set(
         .dst_array_element(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
         .buffer_info(buffer_info);
+    unsafe {
+        device.update_descriptor_sets(
+            &[ubo_write],
+            &[] as &[vk::CopyDescriptorSet]
+        ); }
 
+    Ok(descriptor_set)
+}
+
+pub fn update_descriptor_image(
+    descriptor_set: vk::DescriptorSet,
+    device: &Device,
+    texture_image_view: vk::ImageView,
+    texture_sampler: vk::Sampler,
+) -> Result<(), Box<dyn Error>> {
     let info = vk::DescriptorImageInfo::default()
         .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
         .image_view(texture_image_view)
@@ -42,12 +54,11 @@ pub fn create_descriptor_set(
         .dst_array_element(0)
         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
         .image_info(image_info);
-
     unsafe {
         device.update_descriptor_sets(
-            &[ubo_write, sampler_write],
+            &[sampler_write],
             &[] as &[vk::CopyDescriptorSet]
         ); }
-
-    Ok(descriptor_set)
+    
+    Ok(())
 }

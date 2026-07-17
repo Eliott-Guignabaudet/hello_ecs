@@ -1,13 +1,14 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
 use crate::renderer::command_pool::CommandPool;
-use crate::renderer::descriptor::create_descriptor_set;
+use crate::renderer::descriptor::{create_descriptor_set, update_descriptor_image};
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 
 pub struct RenderFrameResource {
     pub framebuffer: vk::Framebuffer,
     pub image_in_flight: vk::Fence,
     pub descriptor_set: vk::DescriptorSet,
+    pub descriptor_set_material: vk::DescriptorSet,
     pub graphics_command_pool: CommandPool,
     pub uniform_buffer: UniformBuffer,
 }
@@ -52,16 +53,28 @@ impl RenderFrameResource {
             descriptor_pool,
             uniform_buffer.buffer,
             size_of::<UniformBufferObject>() as u64,
+        )?;
+
+        let layouts = vec![descriptor_set_layout; 1];
+        let info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_set_material = unsafe { device.allocate_descriptor_sets(&info) }?[0];
+        
+        update_descriptor_image(
+            descriptor_set_material,
+            device,
             texture_image_view,
             texture_sampler,
         )?;
-        
         
         Ok(Self {
             framebuffer,
             graphics_command_pool,
             image_in_flight,
             descriptor_set,
+            descriptor_set_material,
             uniform_buffer,
         })
     }

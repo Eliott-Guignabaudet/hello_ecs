@@ -136,7 +136,7 @@ impl HelloRenderer {
             &instance.instance,
             &device.device,
             device.physical_device,
-            &Path::new("resources/texture.png"),
+            &Path::new("resources/T_Yoyo_Albedo.png"),
             device.transfer_queue,
             device.transfer_command_pool.command_pool,
             device.graphics_queue,
@@ -170,14 +170,22 @@ impl HelloRenderer {
         }
         
         let mut models = vec![];
-        let model = Model::new_from_raw_data(
+        // let model = Model::new_from_raw_data(
+        //     &instance.instance,
+        //     &device.device,
+        //     device.physical_device,
+        //     device.transfer_queue,
+        //     device.transfer_command_pool.command_pool,
+        //     VERTICES.to_vec(),
+        //     INDICES.to_vec(),
+        // )?;
+        let model = Model::new_from_path(
             &instance.instance,
             &device.device,
             device.physical_device,
             device.transfer_queue,
             device.transfer_command_pool.command_pool,
-            VERTICES.to_vec(),
-            INDICES.to_vec(),
+            "resources/yoyo.obj",
         )?;
         models.push(model);
         
@@ -311,9 +319,10 @@ impl HelloRenderer {
     
     fn update_uniform_buffer(&mut self, image_index: usize) -> Result<(), Box<dyn Error>> {
         let time = self.start.elapsed().as_secs_f32();
-        let rotation_angle : Unit<Vector3<f32>> = UnitVector3:: new_normalize(Vector3::new(0.0, 0.0, 1.0));
         
-        let model = Matrix4::from_axis_angle(&rotation_angle,  90.0_f32.to_radians() * time);
+        let model = 
+            Matrix4::from_euler_angles(0.0, 0.0,  90.0_f32.to_radians() * time )
+            * Matrix4::from_euler_angles(90.0_f32.to_radians(), 0.0, 0.0);
         //let model = Matrix4::identity();
         let view = Matrix4::look_at_rh(
             &Point3::new(2.0, 2.0, 2.0),
@@ -397,19 +406,31 @@ fn record_draw_command(
 
     unsafe { device.device.cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE); }
     unsafe { device.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, render_pipeline.pipeline); }
-    unsafe { device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[model.vertex_buffer], &[0]); }
-    unsafe { device.device.cmd_bind_index_buffer(command_buffer, model.index_buffer, 0, vk::IndexType::UINT32); }
     unsafe {
         device.device.cmd_bind_descriptor_sets(
             command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             render_pipeline.pipeline_layout,
             0,
-            &[frame_resources.descriptor_set],
+            &[frame_resources.descriptor_set, frame_resources.descriptor_set],
             &[],
         );
     }
-    unsafe { device.device.cmd_draw_indexed(command_buffer, INDICES.len() as u32, 1, 0, 0, 0); }
+
+    unsafe {
+        device.device.cmd_bind_descriptor_sets(
+            command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            render_pipeline.pipeline_layout,
+            1,
+            &[frame_resources.descriptor_set_material],
+            &[],
+        );
+    }
+    unsafe { device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[model.vertex_buffer], &[0]); }
+    unsafe { device.device.cmd_bind_index_buffer(command_buffer, model.index_buffer, 0, vk::IndexType::UINT32); }
+    
+    unsafe { device.device.cmd_draw_indexed(command_buffer, model.index_count * size_of::<u32>() as u32, 1, 0, 0, 0); }
     unsafe { device.device.cmd_end_render_pass(command_buffer); }
 
     unsafe { device.device.end_command_buffer(command_buffer)?; }
