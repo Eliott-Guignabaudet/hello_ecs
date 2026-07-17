@@ -1,5 +1,4 @@
 use nalgebra::Vector4;
-use crate::renderer::texture::Texture;
 
 pub struct Material{
     pub base_color : Vector4<f32>,

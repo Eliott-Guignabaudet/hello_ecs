@@ -326,13 +326,6 @@ impl Texture {
 
         Ok(())
     }
-
-    pub unsafe fn destroy(&mut self, device: &Device){
-        device.destroy_sampler(self.sampler, None);
-        device.destroy_image_view(self.texture.image_view.unwrap(), None);
-        device.destroy_image(self.texture.image, None);
-        device.free_memory(self.texture.image_memory, None);
-    }
 }
 
 

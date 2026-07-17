@@ -1,4 +1,8 @@
-﻿use std::borrow::Cow;
+﻿#[allow(
+    unsafe_op_in_unsafe_fn,
+)]
+
+use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{c_char, CStr};
 use ash::{vk, Instance};
@@ -27,9 +31,7 @@ impl RenderInstance {
             .collect();
 
         let mut extension_names =
-            ash_window::enumerate_required_extensions(window.display_handle()?.as_raw())
-                .unwrap()
-                .to_vec();
+            ash_window::enumerate_required_extensions(window.display_handle()?.as_raw())?.to_vec();
         extension_names.push(debug_utils::NAME.as_ptr());
 
 
@@ -82,7 +84,7 @@ impl RenderInstance {
         let debug_callback = unsafe {
             debug_utils_loader
                 .create_debug_utils_messenger(&debug_info, None)
-        }.unwrap();
+        }?;
 
         Ok(Self{
             entry,
@@ -99,7 +101,7 @@ unsafe extern "system" fn vulkan_debug_callback(
     message_type: vk::DebugUtilsMessageTypeFlagsEXT,
     p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT<'_>,
     _user_data: *mut std::os::raw::c_void,
-) -> vk::Bool32 {
+) -> vk::Bool32 { unsafe {
     let callback_data = *p_callback_data;
     let message_id_number = callback_data.message_id_number;
 
@@ -120,4 +122,4 @@ unsafe extern "system" fn vulkan_debug_callback(
     );
 
     vk::FALSE
-}
+}}

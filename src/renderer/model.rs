@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::ptr::copy_nonoverlapping;
 use ash::{vk, Device, Instance};
-use nalgebra::{Matrix, Vector2, Vector3};
+use nalgebra::{Vector2, Vector3};
 use crate::renderer::buffer::{copy_buffer, create_buffer};
 use crate::renderer::vertex::Vertex;
 

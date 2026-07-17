@@ -1,6 +1,5 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
-use ash::vk::Format;
 use crate::renderer::image::ImageHandle;
 use crate::renderer::VulkanError;
 

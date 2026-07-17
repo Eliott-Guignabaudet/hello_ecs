@@ -7,7 +7,7 @@ pub fn create_descriptor_set(
     descriptor_pool: vk::DescriptorPool,
     uniform_buffer: vk::Buffer,
     uniform_buffer_size: u64,
-) -> Result<(vk::DescriptorSet), Box<dyn Error>>{
+) -> Result<vk::DescriptorSet, Box<dyn Error>>{
     let layouts = vec![descriptor_set_layout; 1];
     let info = vk::DescriptorSetAllocateInfo::default()
         .descriptor_pool(descriptor_pool)

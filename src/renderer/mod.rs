@@ -22,14 +22,12 @@ mod scene;
 
 use std::error::Error;
 use std::fmt;
-use std::path::Path;
 use std::ptr::copy_nonoverlapping;
 use std::time::Instant;
 use ash::vk;
 use ash::vk::Handle;
 use itertools::multizip;
-use nalgebra::{Matrix4, Point3, Unit, UnitVector3, Vector2, Vector3};
-use thiserror::__private18::AsDynError;
+use nalgebra::{Matrix4, Point3, Vector2, Vector3};
 use winit::window::Window;
 
 
@@ -41,14 +39,13 @@ use render_pass::RenderPass;
 use graphic_pipeline::GraphicsPipeline;
 use model::Model;
 use vertex::Vertex;
-use crate::renderer::command_pool::CommandPool;
 use crate::renderer::descriptor::{create_descriptor_set, update_descriptor_image};
 use crate::renderer::frame_resources::RenderFrameResource;
 use crate::renderer::sync::FrameSync;
 use crate::renderer::texture::Texture;
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 
-pub use crate::renderer::material::{Material, MaterialUniformBufferObject};
+pub use crate::renderer::material::{Material};
 pub use crate::renderer::scene::Scene;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
@@ -114,7 +111,6 @@ impl HelloRenderer {
         let instance = RenderInstance::new(window)?;
         let surface = RenderSurface::new(&instance.entry, &instance.instance, window)?;
         let device = RenderDevice::new(
-            &instance.entry, 
             &instance.instance, 
             surface.surface, 
             &surface.surface_loader)?;
@@ -370,8 +366,6 @@ impl HelloRenderer {
     }
     
     fn update_uniform_buffer(&mut self, image_index: usize) -> Result<(), Box<dyn Error>> {
-        let time = self.start.elapsed().as_secs_f32();
-
         let view = Matrix4::look_at_rh(
             &Point3::new(2.0, 2.0, 2.0),
             &Point3::new(0.0, 0.0, 0.0),
@@ -416,22 +410,6 @@ impl HelloRenderer {
     
     fn update_command_buffer(&mut self, image_index: usize, scene: Scene) -> Result<(), Box<dyn Error>> {
         self.frame_resources[image_index].graphics_command_pool.reset(&self.device.device)?;
-        // let time = self.start.elapsed().as_secs_f32();
-        // 
-        // let transform =
-        //     Matrix4::from_euler_angles(0.0, 0.0,  90.0_f32.to_radians() * time )
-        //         * Matrix4::from_euler_angles(90.0_f32.to_radians(), 0.0, 0.0);
-        // record_draw_command(
-        //     &self.device,
-        //     &self.swapchain,
-        //     &self.render_pass,
-        //     &self.graphics_pipeline,
-        //     &self.frame_resources[image_index],
-        //     &self.models[0],
-        //     transform,
-        //     self.materials_descriptor_sets[0]
-        // )?;
-        // 
         record_draw_command_for_scene(
             &self.device,
             &self.swapchain,
@@ -446,7 +424,7 @@ impl HelloRenderer {
         Ok(())
     }
 
-    fn recreate_swapchain(&self, window: &Window) -> Result<(), Box<dyn Error>> {
+    fn recreate_swapchain(&self, _: &Window) -> Result<(), Box<dyn Error>> {
         todo!()
     }
 }

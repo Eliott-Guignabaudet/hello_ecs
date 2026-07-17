@@ -1,12 +1,11 @@
 ﻿use std::collections::HashSet;
 use std::error::Error;
 use std::ffi::CStr;
-use ash::khr::{surface, swapchain};
-use ash::{vk, Device, Entry, Instance};
+use ash::khr::{surface};
+use ash::{vk, Device, Instance};
 use thiserror::Error;
 use log::{info, warn};
 use crate::renderer::command_pool::CommandPool;
-use crate::renderer::constants::VALIDATION_LAYER;
 
 const DEVICE_EXTENSIONS: &CStr  = c"VK_KHR_swapchain";
 
@@ -19,7 +18,6 @@ pub struct SwapchainSupport {
 
 impl SwapchainSupport {
     pub fn get(
-        instance: &Instance,
         surface: vk::SurfaceKHR,
         physical_device: vk::PhysicalDevice,
         surface_loader: &surface::Instance,
@@ -123,7 +121,6 @@ pub struct RenderDevice{
 
 impl RenderDevice {
     pub fn new(
-        entry: &Entry,
         instance: &Instance,
         surface: vk::SurfaceKHR,
         surface_loader: &surface::Instance,
@@ -133,14 +130,13 @@ impl RenderDevice {
             Self::pick_physical_device(instance, surface, surface_loader)?;
 
         let (device, queue_family_indices) = Self::create_logical_device(
-            entry,
             instance,
             surface,
             physical_device,
             surface_loader)?;
 
         let (graphics_queue, present_queue, transfer_queue) = Self::get_device_queues(&device, queue_family_indices)?;
-        let swapchain_support = SwapchainSupport::get(instance, surface, physical_device, surface_loader)?;
+        let swapchain_support = SwapchainSupport::get(surface, physical_device, surface_loader)?;
         
         let graphics_command_pool = CommandPool::new(
             &device,
@@ -202,7 +198,7 @@ impl RenderDevice {
         QueueFamilyIndices::get(instance, surface, &surface_loader, physical_device)?;
         Self::check_physical_device_extensions(instance, physical_device)?;
 
-        let support = SwapchainSupport::get(instance, surface, physical_device, surface_loader)?;
+        let support = SwapchainSupport::get(surface, physical_device, surface_loader)?;
         if support.formats.is_empty() || support.present_modes.is_empty() {
             return Err(Box::new(SuitabilityError("Insufficient swapchain support.")));
         }
@@ -220,15 +216,16 @@ impl RenderDevice {
         instance: &Instance,
         physical_device: vk::PhysicalDevice,
     ) -> Result<(), Box<dyn Error>> {
-        let extensions = unsafe {
+        let binding = unsafe {
             instance
                 .enumerate_device_extension_properties(physical_device)
-        }?
+        }?;
+        let available_extensions = binding
             .iter()
-            .map(|e| e.extension_name)
+            .map(|e| e.extension_name_as_c_str().unwrap())
             .collect::<HashSet<_>>();
-        let extensions = &[DEVICE_EXTENSIONS.as_ptr()];
-        if extensions.iter().all(|e| extensions.contains(e)) {
+        let extensions = &[DEVICE_EXTENSIONS];
+        if extensions.iter().all(|e| available_extensions.contains(e)) {
             Ok(())
         } else {
             Err(Box::new(SuitabilityError("Missing required device extensions.")))
@@ -258,7 +255,6 @@ impl RenderDevice {
 
 
     fn create_logical_device(
-        entry: &Entry,
         instance: &Instance,
         surface: vk::SurfaceKHR,
         physical_device: vk::PhysicalDevice,
@@ -283,10 +279,6 @@ impl RenderDevice {
 
 
         let extensions = &[DEVICE_EXTENSIONS.as_ptr()];
-
-        // if cfg!(target_os = "macos") && entry.version()? >= PORTABILITY_MACOS_VERSION {
-        //     extensions.push(vk::KHR_PORTABILITY_SUBSET_EXTENSION.name.as_ptr());
-        // }
 
         let features = vk::PhysicalDeviceFeatures::default()
             .sampler_anisotropy(true)

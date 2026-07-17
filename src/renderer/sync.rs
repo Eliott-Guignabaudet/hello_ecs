@@ -21,11 +21,7 @@ impl FrameSync {
 
         Ok( Self { image_available_semaphore,  render_finished_semaphore, in_flight_fence } )
     }
-
-    pub unsafe fn destroy(&mut self, device: &Device) {
-        device.destroy_semaphore(self.render_finished_semaphore, None);
-        device.destroy_semaphore(self.image_available_semaphore, None);
-    }
+    
 
     pub fn wait_for_fence(
         &self,

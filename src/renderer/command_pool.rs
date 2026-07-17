@@ -4,7 +4,6 @@ use ash::{vk, Device};
 pub struct CommandPool {
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
-    pub secondary_command_buffers: Vec<vk::CommandBuffer> ,
 }
 
 impl CommandPool {
@@ -23,14 +22,12 @@ impl CommandPool {
             .level(vk::CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
         let command_buffer = unsafe { device.allocate_command_buffers(&allocate_info) }?[0];
-        let secondary_command_buffers = vec![];
 
 
 
         Ok(Self {
             command_pool,
             command_buffer,
-            secondary_command_buffers
         })
     }
     

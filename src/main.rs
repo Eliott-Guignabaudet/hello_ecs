@@ -3,11 +3,10 @@ mod transform;
 mod renderer;
 
 use std::time::Instant;
-use nalgebra::{Matrix4, Point3, Quaternion, UnitQuaternion, Vector3, Vector4};
+use nalgebra::{Matrix4, UnitQuaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::multizip;
-use nalgebra_glm::Mat4;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -16,11 +15,6 @@ use crate::renderer::{Material, Scene};
 use crate::renderer::HelloRenderer;
 
 const ENTITIES_TO_SPAWN: u32 = 20;
-#[derive(Clone, Debug, Copy)]
-struct Vertex {
-    pos: [f32; 4],
-    color: [f32; 4],
-}
 
 fn create_entities(world: &mut World) {
     for i in 0..ENTITIES_TO_SPAWN {
@@ -70,7 +64,7 @@ fn create_render_scene(world: &World) -> Scene {
     let iter = zip.filter_map(|(p, r, s, m)| {
         Some((p.as_mut()?, r.as_mut()?, s.as_mut()?, m.as_mut()?))
     });
-    for (position, rotation,scale, mesh_renderer) in iter {
+    for (position, rotation,_, mesh_renderer) in iter {
         let mut matrix = Matrix4::identity().append_translation(&position.0);
         matrix *= Matrix4::from(rotation.0) * Matrix4::new_scaling(1.0);
 

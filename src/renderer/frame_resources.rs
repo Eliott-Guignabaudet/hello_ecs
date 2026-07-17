@@ -1,7 +1,7 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
 use crate::renderer::command_pool::CommandPool;
-use crate::renderer::descriptor::{create_descriptor_set, update_descriptor_image};
+use crate::renderer::descriptor::{create_descriptor_set};
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 
 pub struct RenderFrameResource {

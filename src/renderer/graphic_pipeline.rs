@@ -240,7 +240,7 @@ impl GraphicsPipeline {
             p_code:    code.as_ptr(),
             ..Default::default()
         };
-        Ok(device.create_shader_module(&info, None)?)
+        Ok(unsafe {device.create_shader_module(&info, None)?})
     }
     
     fn create_descriptor_pool(
