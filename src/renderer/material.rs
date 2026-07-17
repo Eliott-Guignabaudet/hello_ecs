@@ -7,6 +7,15 @@ pub struct Material{
     pub texture_index: Option<u32>
 }
 
+impl Material {
+    pub fn to_uniform(&self) -> MaterialUniformBufferObject {
+        
+        MaterialUniformBufferObject {
+            base_color: self.base_color,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct MaterialUniformBufferObject {

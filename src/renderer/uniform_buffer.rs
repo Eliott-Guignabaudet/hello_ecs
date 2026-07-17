@@ -21,9 +21,10 @@ impl UniformBuffer {
         instance: &Instance,
         device: &Device,
         physical_device: vk::PhysicalDevice,
+        size: u64,
     ) -> Result<Self, Box<dyn Error>> {
 
-        let size = size_of::<UniformBufferObject>() as u64;
+        //let size = size_of::<UniformBufferObject>() as u64;
         let (buffer, buffer_memory) = create_buffer(
             instance,
             device,

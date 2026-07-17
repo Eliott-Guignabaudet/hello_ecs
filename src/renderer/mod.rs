@@ -42,11 +42,12 @@ use graphic_pipeline::GraphicsPipeline;
 use model::Model;
 use vertex::Vertex;
 use crate::renderer::command_pool::CommandPool;
+use crate::renderer::descriptor::create_descriptor_set;
 use crate::renderer::frame_resources::RenderFrameResource;
-use crate::renderer::material::Material;
+use crate::renderer::material::{Material, MaterialUniformBufferObject};
 use crate::renderer::sync::FrameSync;
 use crate::renderer::texture::Texture;
-use crate::renderer::uniform_buffer::UniformBufferObject;
+use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 use crate::renderer::scene::Scene;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
@@ -98,6 +99,7 @@ pub struct HelloRenderer {
     
     //resources descriptors
     materials_descriptor_pool: vk::DescriptorPool,
+    materials_uniform_buffers: Vec<UniformBuffer>,
     materials_descriptor_sets: Vec<vk::DescriptorSet>,
     
     frame: usize,
@@ -198,18 +200,8 @@ impl HelloRenderer {
         let materials = vec![];
 
         let materials_descriptor_pool = vk::DescriptorPool::null();
+        let materials_uniform_buffers = vec![];
         let materials_descriptor_sets = vec![];
-        
-        // frame_resources.iter().for_each(|f| {
-        //     record_draw_command(
-        //         &device,
-        //         &swapchain,
-        //         &render_pass,
-        //         &graphics_pipeline,
-        //         f,
-        //         &models[0],
-        //     ).unwrap()
-        // });
         
         Ok(Self { 
             instance, 
@@ -224,12 +216,68 @@ impl HelloRenderer {
             textures,
             materials,
             materials_descriptor_pool,
+            materials_uniform_buffers,
             materials_descriptor_sets,
             
             frame: 0,
             resized: false,
             start: Instant::now(),
         })
+    }
+    
+    pub fn load_material_resources(&mut self, materials: Vec<Material>, texture_paths: Vec<&str>) -> Result<(), Box<dyn Error>>{
+        self.materials = materials;
+        texture_paths.iter().for_each(|p| {
+            let texture = Texture::new(
+                &self.instance.instance,
+                &self.device.device,
+                self.device.physical_device,
+                p,
+                self.device.transfer_queue,
+                self.device.transfer_command_pool.command_pool,
+                self.device.graphics_queue,
+                self.device.graphics_command_pool.command_pool,
+            ).unwrap();
+            self.textures.push(texture);
+        });
+        let descriptor_count = self.materials.len() as u32;
+        let ubo_size = vk::DescriptorPoolSize::default()
+            .ty(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(descriptor_count);
+        let sampler_size = vk::DescriptorPoolSize::default()
+            .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(descriptor_count);
+
+
+        let pool_sizes = &[ubo_size, sampler_size];
+        let info = vk::DescriptorPoolCreateInfo::default()
+            .pool_sizes(pool_sizes)
+            .max_sets(descriptor_count);
+        self.materials_descriptor_pool = unsafe { self.device.device.create_descriptor_pool(&info, None) }?;
+        
+        
+        for i in 0..descriptor_count {
+            let uniform_buffer_size = size_of::<UniformBufferObject>() as u64;
+            let uniform_buffer = UniformBuffer::new(
+                &self.instance.instance,
+                &self.device.device,
+                self.device.physical_device,
+                uniform_buffer_size,
+            )?;
+            let descriptor_set = create_descriptor_set(
+                &self.device.device,
+                self.graphics_pipeline.descriptor_set_layout_material,
+                self.materials_descriptor_pool,
+                uniform_buffer.buffer,
+                uniform_buffer_size,
+            )?;
+            self.materials_uniform_buffers.push(uniform_buffer);
+            self.materials_descriptor_sets.push(descriptor_set);
+            
+        }
+        
+        
+        Ok(())
     }
     
     pub fn load_model_from_path(&mut self, path: &str) -> Result<(), Box<dyn Error>>{

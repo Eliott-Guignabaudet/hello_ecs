@@ -47,7 +47,8 @@ impl RenderFrameResource {
             flags,
         )?;
         let image_in_flight = vk::Fence::null();
-        let uniform_buffer = UniformBuffer::new(instance, device, physical_device)?;
+        let uniform_buffer_size = size_of::<UniformBufferObject>() as u64;
+        let uniform_buffer = UniformBuffer::new(instance, device, physical_device, uniform_buffer_size)?;
         let descriptor_set = create_descriptor_set(
             device,
             descriptor_set_layout,
