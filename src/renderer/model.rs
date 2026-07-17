@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::ptr::copy_nonoverlapping;
 use ash::{vk, Device, Instance};
-use nalgebra::{Vector2, Vector3};
+use nalgebra::{Matrix, Vector2, Vector3};
 use crate::renderer::buffer::{copy_buffer, create_buffer};
 use crate::renderer::vertex::Vertex;
 
@@ -22,10 +22,11 @@ impl Model{
         physical_device: vk::PhysicalDevice,
         copy_queue: vk::Queue,
         copy_command_pool: vk::CommandPool,
-        path: &str
+        path: &str,
+        correction: nalgebra::Matrix4<f32>
     ) -> Result<Self, Box<dyn Error>>  {
         
-        let (vertices, indices) = load_model(path)?;
+        let (vertices, indices) = load_model(path, correction)?;
         let (vertex_buffer, vertex_buffer_memory)= Self::create_vertex_buffer(
             instance,
             device,
@@ -194,7 +195,7 @@ impl Model{
     
 }
 
-fn load_model(path: &str) -> anyhow::Result<(Vec<Vertex>, Vec<u32>)> {
+fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> anyhow::Result<(Vec<Vertex>, Vec<u32>)> {
     let mut reader = BufReader::new(File::open(path)?);
 
     let (models, _) = tobj::load_obj_buf(
@@ -207,42 +208,27 @@ fn load_model(path: &str) -> anyhow::Result<(Vec<Vertex>, Vec<u32>)> {
     let mut indices = vec![];
     //let mut unique_vertices = HashMap::new();
     //let correction = nalgebra::Matrix4::from_angle_x(Rad(std::f32::consts::FRAC_PI_2));
+    
     for model in &models {
 
         for i in 0..model.mesh.indices.len() {
             let pi = model.mesh.indices[i] as usize;
             let ti = model.mesh.texcoord_indices[i] as usize;
             let ni = model.mesh.normal_indices[i] as usize;
-
+            
             let vertex = Vertex {
-                // pos:  correction.transform_vector(
-                //     model.mesh.positions[3 * pi],
-                //     model.mesh.positions[3 * pi + 1],
-                //     model.mesh.positions[3 * pi + 2],
-                // ) ),
-                // normal: correction.transform_vector(vec3(
-                //     model.mesh.positions[3 * ni],
-                //     model.mesh.positions[3 * ni + 1],
-                //     model.mesh.positions[3 * ni + 2],
-                // )),
-                // color: vec3(1.0, 1.0, 1.0),
-                // tex_coord: vec2(
-                //     model.mesh.texcoords[2 * ti],
-                //     1.0 - model.mesh.texcoords[2 * ti + 1],
-                // ),
 
-
-                pos:  Vector3::new (
+                pos: correction.transform_vector(&Vector3::new (
                     model.mesh.positions[3 * pi],
                     model.mesh.positions[3 * pi + 1],
                     model.mesh.positions[3 * pi + 2],
-                ),
+                )),
                 
-                normal: Vector3::new (
+                normal: correction.transform_vector(&Vector3::new (
                     model.mesh.positions[3 * ni],
                     model.mesh.positions[3 * ni + 1],
                     model.mesh.positions[3 * ni + 2],
-                ),
+                )),
                 color: Vector3::new (1.0, 1.0, 1.0),
                 tex_coord: Vector2::new(
                     model.mesh.texcoords[2 * ti],

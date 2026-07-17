@@ -266,7 +266,7 @@ impl HelloRenderer {
         Ok(())
     }
     
-    pub fn load_model_from_path(&mut self, path: &str) -> Result<(), Box<dyn Error>>{
+    pub fn load_model_from_path(&mut self, path: &str, correction: Matrix4<f32>) -> Result<(), Box<dyn Error>>{
         let new_model = Model::new_from_path(
             &self.instance.instance,
             &self.device.device,
@@ -274,6 +274,7 @@ impl HelloRenderer {
             self.device.transfer_queue,
             self.device.transfer_command_pool.command_pool,
             path,
+            correction
         )?;
         
         self.models.push(new_model);
@@ -298,7 +299,7 @@ impl HelloRenderer {
     }
     
     
-    pub fn render(&mut self,  window: &winit::window::Window) -> Result<(), Box<dyn Error>>{
+    pub fn render(&mut self,  window: &winit::window::Window, scene: Scene) -> Result<(), Box<dyn Error>>{
         let _ = &self.frame_syncs[self.frame].wait_for_fence(&self.device.device)?;
 
         let result = unsafe {
@@ -325,7 +326,7 @@ impl HelloRenderer {
         self.frame_resources[image_index].image_in_flight =  self.frame_syncs[self.frame].in_flight_fence;
        
         self.update_uniform_buffer(image_index)?;
-        self.update_command_buffer(image_index)?;
+        self.update_command_buffer(image_index, scene)?;
 
         let wait_semaphores = &[self.frame_syncs[self.frame].image_available_semaphore];
         let wait_stages = &[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
@@ -413,22 +414,33 @@ impl HelloRenderer {
         Ok(())
     }
     
-    fn update_command_buffer(&mut self, image_index: usize) -> Result<(), Box<dyn Error>> {
+    fn update_command_buffer(&mut self, image_index: usize, scene: Scene) -> Result<(), Box<dyn Error>> {
         self.frame_resources[image_index].graphics_command_pool.reset(&self.device.device)?;
-        let time = self.start.elapsed().as_secs_f32();
-
-        let transform =
-            Matrix4::from_euler_angles(0.0, 0.0,  90.0_f32.to_radians() * time )
-                * Matrix4::from_euler_angles(90.0_f32.to_radians(), 0.0, 0.0);
-        record_draw_command(
+        // let time = self.start.elapsed().as_secs_f32();
+        // 
+        // let transform =
+        //     Matrix4::from_euler_angles(0.0, 0.0,  90.0_f32.to_radians() * time )
+        //         * Matrix4::from_euler_angles(90.0_f32.to_radians(), 0.0, 0.0);
+        // record_draw_command(
+        //     &self.device,
+        //     &self.swapchain,
+        //     &self.render_pass,
+        //     &self.graphics_pipeline,
+        //     &self.frame_resources[image_index],
+        //     &self.models[0],
+        //     transform,
+        //     self.materials_descriptor_sets[0]
+        // )?;
+        // 
+        record_draw_command_for_scene(
             &self.device,
             &self.swapchain,
             &self.render_pass,
             &self.graphics_pipeline,
             &self.frame_resources[image_index],
-            &self.models[0],
-            transform,
-            self.materials_descriptor_sets[0]
+            &scene,
+            &self.models,
+            &self.materials_descriptor_sets,
         )?;
         
         Ok(())
@@ -528,8 +540,8 @@ fn record_draw_command_for_scene(
     material_descriptors: &Vec<vk::DescriptorSet>,
     
 ) -> Result<(), Box<dyn Error>> {
-    let mut datas : Vec<Vec<(Matrix4<f32>, usize)>> = Vec::with_capacity(material_descriptors.len());
-    
+    let mut datas : Vec<Vec<(Matrix4<f32>, usize)>> = vec![];
+    datas.resize(material_descriptors.len(), vec![]);
     let zip = multizip((scene.transforms.iter(), scene.model_idxs.iter(), scene.material_idxs.iter()));
     zip.for_each(|(t, mo, ma)| {
        datas[*ma as usize].push((*t, *mo as usize))
