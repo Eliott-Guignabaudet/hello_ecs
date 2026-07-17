@@ -68,17 +68,17 @@ impl GraphicsPipeline {
     }
 
     fn create_descriptor_set_layout_material(device: &Device) -> Result<vk::DescriptorSetLayout, Box<dyn Error>> {
-        let sampler_binding = vk::DescriptorSetLayoutBinding::default()
-            .binding(0)
-            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        
         let material_ubo_binding = vk::DescriptorSetLayoutBinding::default()
-            .binding(1)
+            .binding(0)
             .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
             .descriptor_count(1)
             .stage_flags(vk::ShaderStageFlags::FRAGMENT);
-
+        let sampler_binding = vk::DescriptorSetLayoutBinding::default()
+            .binding(1)
+            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
         let bindings = &[sampler_binding, material_ubo_binding];
         let info = vk::DescriptorSetLayoutCreateInfo::default()

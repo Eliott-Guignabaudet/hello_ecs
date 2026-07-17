@@ -42,13 +42,14 @@ use graphic_pipeline::GraphicsPipeline;
 use model::Model;
 use vertex::Vertex;
 use crate::renderer::command_pool::CommandPool;
-use crate::renderer::descriptor::create_descriptor_set;
+use crate::renderer::descriptor::{create_descriptor_set, update_descriptor_image};
 use crate::renderer::frame_resources::RenderFrameResource;
-use crate::renderer::material::{Material, MaterialUniformBufferObject};
 use crate::renderer::sync::FrameSync;
 use crate::renderer::texture::Texture;
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
-use crate::renderer::scene::Scene;
+
+pub use crate::renderer::material::{Material, MaterialUniformBufferObject};
+pub use crate::renderer::scene::Scene;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 #[derive(Debug)]
@@ -140,21 +141,10 @@ impl HelloRenderer {
             &device.device,
             swapchain.extent,
             render_pass.render_pass,
-            vertex::Vertex::binding_description(),
-            vertex::Vertex::attribute_descriptions(),
+            Vertex::binding_description(),
+            Vertex::attribute_descriptions(),
             device.msaa_samples,
             swapchain.images.len() as u32,
-        )?;
-        
-        let texture = Texture::new(
-            &instance.instance,
-            &device.device,
-            device.physical_device,
-            &Path::new("resources/T_Yoyo_Albedo.png"),
-            device.transfer_queue,
-            device.transfer_command_pool.command_pool,
-            device.graphics_queue,
-            device.graphics_command_pool.command_pool,
         )?;
 
         let frame_resources = swapchain.image_views
@@ -172,10 +162,7 @@ impl HelloRenderer {
                     device.queue_family_indices.graphics,
                     vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
                     graphics_pipeline.descriptor_set_layout,
-                    graphics_pipeline.descriptor_set_layout_material,
                     graphics_pipeline.descriptor_pool,
-                    texture.texture.image_view.unwrap(),
-                    texture.sampler,
                 )
             })
             .collect::<anyhow::Result<Vec<_>, _>>()?;
@@ -184,18 +171,7 @@ impl HelloRenderer {
             frame_syncs.push(FrameSync::new(&device.device)?);
         }
         
-        let mut models = vec![];
-
-        let model = Model::new_from_path(
-            &instance.instance,
-            &device.device,
-            device.physical_device,
-            device.transfer_queue,
-            device.transfer_command_pool.command_pool,
-            "resources/yoyo.obj",
-        )?;
-        models.push(model);
-
+        let models = vec![];
         let textures = vec![];
         let materials = vec![];
 
@@ -271,6 +247,16 @@ impl HelloRenderer {
                 uniform_buffer.buffer,
                 uniform_buffer_size,
             )?;
+            
+            let texture = &self
+                .textures[self.materials[i as usize].texture_index.unwrap() as usize];
+            update_descriptor_image(
+                descriptor_set,
+                &self.device.device,
+                texture.texture.image_view.unwrap(),
+                texture.sampler,
+            )?;
+            
             self.materials_uniform_buffers.push(uniform_buffer);
             self.materials_descriptor_sets.push(descriptor_set);
             
@@ -442,6 +428,7 @@ impl HelloRenderer {
             &self.frame_resources[image_index],
             &self.models[0],
             transform,
+            self.materials_descriptor_sets[0]
         )?;
         
         Ok(())
@@ -460,6 +447,7 @@ fn record_draw_command(
     frame_resources: &RenderFrameResource,
     model: &Model,
     transform: Matrix4<f32>,
+    material: vk::DescriptorSet,
 ) -> Result<(), Box<dyn Error>> {
     let info = vk::CommandBufferBeginInfo::default();
     let command_buffer = frame_resources.graphics_command_pool.command_buffer;
@@ -513,7 +501,7 @@ fn record_draw_command(
             vk::PipelineBindPoint::GRAPHICS,
             render_pipeline.pipeline_layout,
             1,
-            &[frame_resources.descriptor_set_material],
+            &[material],
             &[],
         );
     }

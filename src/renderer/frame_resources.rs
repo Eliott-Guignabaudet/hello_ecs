@@ -8,7 +8,6 @@ pub struct RenderFrameResource {
     pub framebuffer: vk::Framebuffer,
     pub image_in_flight: vk::Fence,
     pub descriptor_set: vk::DescriptorSet,
-    pub descriptor_set_material: vk::DescriptorSet,
     pub graphics_command_pool: CommandPool,
     pub uniform_buffer: UniformBuffer,
 }
@@ -26,10 +25,7 @@ impl RenderFrameResource {
         queue_family_index: u32,
         flags: vk::CommandPoolCreateFlags,
         descriptor_set_layout: vk::DescriptorSetLayout,
-        descriptor_set_layout_material: vk::DescriptorSetLayout,
         descriptor_pool: vk::DescriptorPool,
-        texture_image_view: vk::ImageView,
-        texture_sampler: vk::Sampler,
     ) -> Result<Self, Box<dyn Error>> {
 
         let framebuffer = Self::create_framebuffer(
@@ -56,27 +52,13 @@ impl RenderFrameResource {
             uniform_buffer.buffer,
             size_of::<UniformBufferObject>() as u64,
         )?;
-
-        let layouts = vec![descriptor_set_layout_material; 1];
-        let info = vk::DescriptorSetAllocateInfo::default()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_set_material = unsafe { device.allocate_descriptor_sets(&info) }?[0];
         
-        update_descriptor_image(
-            descriptor_set_material,
-            device,
-            texture_image_view,
-            texture_sampler,
-        )?;
         
         Ok(Self {
             framebuffer,
             graphics_command_pool,
             image_in_flight,
             descriptor_set,
-            descriptor_set_material,
             uniform_buffer,
         })
     }

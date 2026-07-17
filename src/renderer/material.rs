@@ -7,6 +7,15 @@ pub struct Material{
     pub texture_index: Option<u32>
 }
 
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            base_color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+            texture_index: None,
+        }
+    }
+}
+
 impl Material {
     pub fn to_uniform(&self) -> MaterialUniformBufferObject {
         

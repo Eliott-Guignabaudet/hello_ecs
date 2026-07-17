@@ -50,7 +50,7 @@ pub fn update_descriptor_image(
     let image_info = &[info];
     let sampler_write = vk::WriteDescriptorSet::default()
         .dst_set(descriptor_set)
-        .dst_binding(0)
+        .dst_binding(1)
         .dst_array_element(0)
         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
         .image_info(image_info);

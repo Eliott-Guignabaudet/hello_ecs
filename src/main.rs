@@ -3,7 +3,7 @@ mod transform;
 mod renderer;
 
 
-use nalgebra::{Point3, Quaternion, Vector3};
+use nalgebra::{Point3, Quaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::multizip;
@@ -11,6 +11,7 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
+use crate::renderer::Material;
 use crate::renderer::HelloRenderer;
 
 const ENTITIES_TO_SPAWN: u32 = 20;
@@ -91,7 +92,17 @@ impl ApplicationHandler for App {
             .with_title("My first ECS App")
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
         let window = event_loop.create_window(window_attributes).unwrap();
-        let renderer = HelloRenderer::new(&window).unwrap();
+        let mut renderer = HelloRenderer::new(&window).unwrap();
+        
+        let texture_paths : Vec<&str> = vec!["resources/T_Yoyo_Albedo.png"];
+        
+        let materials : Vec<Material> = vec![
+               Material { base_color : Vector4::new(1.0, 1.0, 1.0, 1.0) , texture_index: Some(0)}
+        ];
+        renderer.load_material_resources(materials, texture_paths).unwrap();
+        renderer.load_model_from_path("resources/yoyo.obj").unwrap();
+        
+        
         self.window_id = Some(window.id());
         self.window = Some(window);
         self.renderer = Some(renderer);
