@@ -1,5 +1,6 @@
 use std::error::Error;
 use ash::{vk, Device};
+use ash::vk::ColorComponentFlags;
 
 pub struct GraphicsPipeline{
     pub pipeline: vk::Pipeline,
@@ -139,8 +140,6 @@ impl GraphicsPipeline {
             .sample_shading_enable(true)
             .min_sample_shading(0.2)
             .rasterization_samples(msaa_samples);
-
-
         let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::default()
             .depth_test_enable(true)
             .depth_write_enable(true)
@@ -149,9 +148,9 @@ impl GraphicsPipeline {
             .stencil_test_enable(false);
 
         // Color Blend State
-
+        
         let attachment = vk::PipelineColorBlendAttachmentState::default()
-            .color_write_mask(vk::ColorComponentFlags::default())
+            .color_write_mask(ColorComponentFlags::RGBA,)
             .blend_enable(true)
             .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
             .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)

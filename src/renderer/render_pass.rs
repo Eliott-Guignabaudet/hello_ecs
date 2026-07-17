@@ -4,8 +4,8 @@ use crate::renderer::image::ImageHandle;
 
 pub struct RenderPass {
     pub render_pass: vk::RenderPass,
-    color_image: ImageHandle,
-    depth: ImageHandle,
+    pub color_image: ImageHandle,
+    pub depth: ImageHandle,
 }
 
 impl RenderPass {

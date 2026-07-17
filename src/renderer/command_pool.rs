@@ -2,9 +2,9 @@ use std::error::Error;
 use ash::{vk, Device};
 
 pub struct CommandPool {
-    command_pool: vk::CommandPool,
-    command_buffer: vk::CommandBuffer,
-    secondary_command_buffers: Vec<vk::CommandBuffer> ,
+    pub command_pool: vk::CommandPool,
+    pub command_buffer: vk::CommandBuffer,
+    pub secondary_command_buffers: Vec<vk::CommandBuffer> ,
 }
 
 impl CommandPool {

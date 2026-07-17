@@ -10,7 +10,8 @@ use itertools::multizip;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::WindowId;
+use winit::window::{Window, WindowId};
+use crate::renderer::HelloRenderer;
 
 const ENTITIES_TO_SPAWN: u32 = 20;
 #[derive(Clone, Debug, Copy)]
@@ -53,7 +54,7 @@ fn main() -> anyhow::Result<()>{
     print_transforms(&world);
 
     let event_loop = EventLoop::new()?;
-    let mut app = renderer::RenderApp::new()?;
+    let mut app = App::new();
 
     event_loop.run_app(&mut app)?;
 
@@ -67,16 +68,77 @@ fn main() -> anyhow::Result<()>{
 }
 
 struct App {
+    idx: usize,
+    window_id: Option<WindowId>,
+    window: Option<Window>,
+    renderer: Option<HelloRenderer>,
+}
 
+impl App {
+    fn new () -> Self {
+        Self{
+            idx: 1,
+            window: None,
+            window_id: None,
+            renderer: None,
+        }
+    }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        todo!()
+        let window_attributes = Window::default_attributes()
+            .with_title("My first ECS App")
+            .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
+        let window = event_loop.create_window(window_attributes).unwrap();
+        let renderer = HelloRenderer::new(&window).unwrap();
+        self.window_id = Some(window.id());
+        self.window = Some(window);
+        self.renderer = Some(renderer);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
-        todo!()
+        if event == WindowEvent::Destroyed && self.window_id == Some(window_id) {
+            println!(
+                "--------------------------------------------------------- Window {} Destroyed",
+                self.idx
+            );
+            self.window_id = None;
+            event_loop.exit();
+            return;
+        }
+
+        let window = match self.window.as_mut() {
+            Some(window) => window,
+            None => return,
+        };
+
+        let renderer = match self.renderer.as_mut() {
+            Some(render_app) => render_app,
+            None => return,
+        };
+        
+
+        match event {
+            WindowEvent::CloseRequested => {
+                println!(
+                    "--------------------------------------------------------- Window {} \
+                         CloseRequested",
+                    self.idx
+                );
+                self.window = None;
+            },
+            WindowEvent::RedrawRequested => {
+                renderer.render(window).unwrap();
+            },
+            _ => (),
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
     }
 }
 

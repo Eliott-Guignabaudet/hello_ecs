@@ -14,3 +14,5 @@ winit = { version = "0.30.13", features = ["rwh_06"] }
 thiserror = "2.0.18"
 log = "0.4.33"
 tobj = "4.0.4"
+png = "0.17"
+nalgebra-glm = "0.21.0"

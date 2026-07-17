@@ -5,11 +5,11 @@ use crate::renderer::descriptor::create_descriptor_set;
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 
 pub struct RenderFrameResource {
-    framebuffer: vk::Framebuffer,
-    image_in_flight: vk::Fence,
-    descriptor_set: vk::DescriptorSet,
-    graphics_command_pool: CommandPool,
-    uniform_buffer: UniformBuffer,
+    pub framebuffer: vk::Framebuffer,
+    pub image_in_flight: vk::Fence,
+    pub descriptor_set: vk::DescriptorSet,
+    pub graphics_command_pool: CommandPool,
+    pub uniform_buffer: UniformBuffer,
 }
 
 impl RenderFrameResource {

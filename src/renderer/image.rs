@@ -52,6 +52,7 @@ impl ImageHandle {
             )?);
 
         let image_memory = unsafe { device.allocate_memory(&info, None) }?;
+        unsafe { device.bind_image_memory(image, image_memory, 0)?; }
 
         Ok(Self{
             image,

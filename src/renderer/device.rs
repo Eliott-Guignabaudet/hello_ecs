@@ -5,6 +5,7 @@ use ash::khr::{surface, swapchain};
 use ash::{vk, Device, Entry, Instance};
 use thiserror::Error;
 use log::{info, warn};
+use crate::renderer::command_pool::CommandPool;
 use crate::renderer::constants::VALIDATION_LAYER;
 
 const DEVICE_EXTENSIONS: &CStr  = c"VK_KHR_swapchain";
@@ -111,6 +112,9 @@ pub struct RenderDevice{
     pub graphics_queue: vk::Queue,
     pub present_queue: vk::Queue,
     pub transfer_queue: vk::Queue,
+    
+    pub transfer_command_pool: CommandPool,
+    pub graphics_command_pool: CommandPool,
 
     pub msaa_samples: vk::SampleCountFlags,
     
@@ -137,6 +141,18 @@ impl RenderDevice {
 
         let (graphics_queue, present_queue, transfer_queue) = Self::get_device_queues(&device, queue_family_indices)?;
         let swapchain_support = SwapchainSupport::get(instance, surface, physical_device, surface_loader)?;
+        
+        let graphics_command_pool = CommandPool::new(
+            &device,
+            queue_family_indices.graphics,
+            vk::CommandPoolCreateFlags::TRANSIENT,
+        )?;
+        
+        let transfer_command_pool = CommandPool::new(
+            &device,
+            queue_family_indices.transfer,
+            vk::CommandPoolCreateFlags::TRANSIENT,
+        )?;
 
 
         Ok(Self {
@@ -145,6 +161,8 @@ impl RenderDevice {
             graphics_queue,
             present_queue,
             transfer_queue,
+            transfer_command_pool,
+            graphics_command_pool,
             msaa_samples,
             queue_family_indices,
             swapchain_support
