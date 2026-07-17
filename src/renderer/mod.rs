@@ -1,7 +1,4 @@
 ﻿mod constants;
-mod app;
-#[path = "core-renderer.rs"]
-mod core_renderer;
 mod instance;
 mod surface;
 mod device;
@@ -31,7 +28,6 @@ use ash::vk::Handle;
 use nalgebra::{Matrix4, Point3, Unit, UnitVector3, Vector2, Vector3};
 use thiserror::__private18::AsDynError;
 use winit::window::Window;
-pub use app::RenderApp;
 
 
 use instance::RenderInstance;
