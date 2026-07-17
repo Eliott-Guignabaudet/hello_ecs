@@ -6,6 +6,7 @@ pub struct GraphicsPipeline{
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
+    pub descriptor_set_layout_material: vk::DescriptorSetLayout,
     pub descriptor_pool: vk::DescriptorPool,
     
 }
@@ -23,13 +24,14 @@ impl GraphicsPipeline {
     ) -> Result<Self, Box<dyn Error>> {
         
         let descriptor_set_layout = Self::create_descriptor_set_layout(device)?;
+        let descriptor_set_layout_material = Self::create_descriptor_set_layout_material(device)?;
         
         
         let (pipeline, pipeline_layout) = Self::create_pipeline(
             device,
             swapchain_extent,
             render_pass,
-            &[descriptor_set_layout, descriptor_set_layout],
+            &[descriptor_set_layout, descriptor_set_layout_material],
             vertex_binding_description,
             vertex_attribute_descriptions,
             msaa_samples,
@@ -44,6 +46,7 @@ impl GraphicsPipeline {
             pipeline,
             pipeline_layout,
             descriptor_set_layout,
+            descriptor_set_layout_material,
             descriptor_pool,
         })
         
@@ -55,15 +58,29 @@ impl GraphicsPipeline {
             .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
             .descriptor_count(1)
             .stage_flags(vk::ShaderStageFlags::VERTEX);
+        
+        let bindings = &[ubo_binding];
+        let info = vk::DescriptorSetLayoutCreateInfo::default()
+            .bindings(bindings);
+
+        let handle = unsafe { device.create_descriptor_set_layout(&info, None) }?;
+        Ok( handle )
+    }
+
+    fn create_descriptor_set_layout_material(device: &Device) -> Result<vk::DescriptorSetLayout, Box<dyn Error>> {
         let sampler_binding = vk::DescriptorSetLayoutBinding::default()
-            .binding(1)
+            .binding(0)
             .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        let material_ubo_binding = vk::DescriptorSetLayoutBinding::default()
+            .binding(1)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
             .descriptor_count(1)
             .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
 
-
-        let bindings = &[ubo_binding, sampler_binding];
+        let bindings = &[sampler_binding, material_ubo_binding];
         let info = vk::DescriptorSetLayoutCreateInfo::default()
             .bindings(bindings);
 

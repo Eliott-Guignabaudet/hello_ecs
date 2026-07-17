@@ -33,4 +33,10 @@ impl CommandPool {
             secondary_command_buffers
         })
     }
+    
+    pub fn reset(&mut self, device: &Device) -> Result<(), Box<dyn Error>> {
+        unsafe { device.reset_command_buffer(self.command_buffer, vk::CommandBufferResetFlags::empty())? }
+        
+        Ok(())
+    }
 }

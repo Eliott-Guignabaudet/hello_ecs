@@ -17,6 +17,8 @@ mod model;
 mod command;
 mod sync;
 mod texture;
+mod material;
+mod scene;
 
 use std::error::Error;
 use std::fmt;
@@ -25,6 +27,7 @@ use std::ptr::copy_nonoverlapping;
 use std::time::Instant;
 use ash::vk;
 use ash::vk::Handle;
+use itertools::multizip;
 use nalgebra::{Matrix4, Point3, Unit, UnitVector3, Vector2, Vector3};
 use thiserror::__private18::AsDynError;
 use winit::window::Window;
@@ -40,9 +43,11 @@ use model::Model;
 use vertex::Vertex;
 use crate::renderer::command_pool::CommandPool;
 use crate::renderer::frame_resources::RenderFrameResource;
+use crate::renderer::material::Material;
 use crate::renderer::sync::FrameSync;
 use crate::renderer::texture::Texture;
 use crate::renderer::uniform_buffer::UniformBufferObject;
+use crate::renderer::scene::Scene;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 #[derive(Debug)]
@@ -85,9 +90,16 @@ pub struct HelloRenderer {
     graphics_pipeline: GraphicsPipeline,
     frame_resources: Vec<RenderFrameResource>,
     frame_syncs: Vec<FrameSync>,
+    
     // resources
     models: Vec<Model>,
-
+    textures: Vec<Texture>,
+    materials: Vec<Material>,
+    
+    //resources descriptors
+    materials_descriptor_pool: vk::DescriptorPool,
+    materials_descriptor_sets: Vec<vk::DescriptorSet>,
+    
     frame: usize,
     resized: bool,
     start: Instant,
@@ -156,8 +168,9 @@ impl HelloRenderer {
                     swapchain.extent,
                     render_pass.render_pass,
                     device.queue_family_indices.graphics,
-                    vk::CommandPoolCreateFlags::TRANSIENT,
+                    vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
                     graphics_pipeline.descriptor_set_layout,
+                    graphics_pipeline.descriptor_set_layout_material,
                     graphics_pipeline.descriptor_pool,
                     texture.texture.image_view.unwrap(),
                     texture.sampler,
@@ -170,15 +183,7 @@ impl HelloRenderer {
         }
         
         let mut models = vec![];
-        // let model = Model::new_from_raw_data(
-        //     &instance.instance,
-        //     &device.device,
-        //     device.physical_device,
-        //     device.transfer_queue,
-        //     device.transfer_command_pool.command_pool,
-        //     VERTICES.to_vec(),
-        //     INDICES.to_vec(),
-        // )?;
+
         let model = Model::new_from_path(
             &instance.instance,
             &device.device,
@@ -188,17 +193,23 @@ impl HelloRenderer {
             "resources/yoyo.obj",
         )?;
         models.push(model);
+
+        let textures = vec![];
+        let materials = vec![];
+
+        let materials_descriptor_pool = vk::DescriptorPool::null();
+        let materials_descriptor_sets = vec![];
         
-        frame_resources.iter().for_each(|f| {
-            record_draw_command(
-                &device,
-                &swapchain,
-                &render_pass,
-                &graphics_pipeline,
-                f,
-                &models[0],
-            ).unwrap()
-        });
+        // frame_resources.iter().for_each(|f| {
+        //     record_draw_command(
+        //         &device,
+        //         &swapchain,
+        //         &render_pass,
+        //         &graphics_pipeline,
+        //         f,
+        //         &models[0],
+        //     ).unwrap()
+        // });
         
         Ok(Self { 
             instance, 
@@ -210,6 +221,11 @@ impl HelloRenderer {
             frame_resources,
             frame_syncs,
             models,
+            textures,
+            materials,
+            materials_descriptor_pool,
+            materials_descriptor_sets,
+            
             frame: 0,
             resized: false,
             start: Instant::now(),
@@ -275,6 +291,7 @@ impl HelloRenderer {
         self.frame_resources[image_index].image_in_flight =  self.frame_syncs[self.frame].in_flight_fence;
        
         self.update_uniform_buffer(image_index)?;
+        self.update_command_buffer(image_index)?;
 
         let wait_semaphores = &[self.frame_syncs[self.frame].image_available_semaphore];
         let wait_stages = &[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
@@ -319,11 +336,7 @@ impl HelloRenderer {
     
     fn update_uniform_buffer(&mut self, image_index: usize) -> Result<(), Box<dyn Error>> {
         let time = self.start.elapsed().as_secs_f32();
-        
-        let model = 
-            Matrix4::from_euler_angles(0.0, 0.0,  90.0_f32.to_radians() * time )
-            * Matrix4::from_euler_angles(90.0_f32.to_radians(), 0.0, 0.0);
-        //let model = Matrix4::identity();
+
         let view = Matrix4::look_at_rh(
             &Point3::new(2.0, 2.0, 2.0),
             &Point3::new(0.0, 0.0, 0.0),
@@ -347,7 +360,7 @@ impl HelloRenderer {
 
 
 
-        let ubo = UniformBufferObject { model, view, proj };
+        let ubo = UniformBufferObject { view, proj };
 
         // Copy
 
@@ -365,6 +378,26 @@ impl HelloRenderer {
         unsafe { self.device.device.unmap_memory(self.frame_resources[image_index].uniform_buffer.buffer_memory); }
         Ok(())
     }
+    
+    fn update_command_buffer(&mut self, image_index: usize) -> Result<(), Box<dyn Error>> {
+        self.frame_resources[image_index].graphics_command_pool.reset(&self.device.device)?;
+        let time = self.start.elapsed().as_secs_f32();
+
+        let transform =
+            Matrix4::from_euler_angles(0.0, 0.0,  90.0_f32.to_radians() * time )
+                * Matrix4::from_euler_angles(90.0_f32.to_radians(), 0.0, 0.0);
+        record_draw_command(
+            &self.device,
+            &self.swapchain,
+            &self.render_pass,
+            &self.graphics_pipeline,
+            &self.frame_resources[image_index],
+            &self.models[0],
+            transform,
+        )?;
+        
+        Ok(())
+    }
 
     fn recreate_swapchain(&self, window: &Window) -> Result<(), Box<dyn Error>> {
         todo!()
@@ -377,7 +410,8 @@ fn record_draw_command(
     render_pass: &RenderPass,
     render_pipeline: &GraphicsPipeline,
     frame_resources: &RenderFrameResource,
-    model: &Model
+    model: &Model,
+    transform: Matrix4<f32>,
 ) -> Result<(), Box<dyn Error>> {
     let info = vk::CommandBufferBeginInfo::default();
     let command_buffer = frame_resources.graphics_command_pool.command_buffer;
@@ -389,7 +423,7 @@ fn record_draw_command(
 
     let color_clear_value = vk::ClearValue {
         color: vk::ClearColorValue {
-            float32: [0.0, 0.0, 0.0, 1.0],
+            float32: [0.2, 0.2, 0.2, 1.0],
         },
     };
 
@@ -417,6 +451,13 @@ fn record_draw_command(
     }
 
     unsafe { device.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, render_pipeline.pipeline); }
+    let model_bytes = unsafe {
+        std::slice::from_raw_parts(
+            &transform as *const Matrix4<f32> as *const u8,
+            size_of::<Matrix4<f32>>()
+        )
+    };
+    unsafe { device.device.cmd_push_constants(command_buffer, render_pipeline.pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, model_bytes); }
 
     unsafe {
         device.device.cmd_bind_descriptor_sets(
@@ -437,5 +478,98 @@ fn record_draw_command(
     unsafe { device.device.end_command_buffer(command_buffer)?; }
     
     
+    Ok(())
+}
+
+fn record_draw_command_for_scene(
+    device: &RenderDevice,
+    swapchain: &RenderSwapchain,
+    render_pass: &RenderPass,
+    render_pipeline: &GraphicsPipeline,
+    frame_resources: &RenderFrameResource,
+    scene: &Scene,
+    models: &Vec<Model>,
+    material_descriptors: &Vec<vk::DescriptorSet>,
+    
+) -> Result<(), Box<dyn Error>> {
+    let mut datas : Vec<Vec<(Matrix4<f32>, usize)>> = Vec::with_capacity(material_descriptors.len());
+    
+    let zip = multizip((scene.transforms.iter(), scene.model_idxs.iter(), scene.material_idxs.iter()));
+    zip.for_each(|(t, mo, ma)| {
+       datas[*ma as usize].push((*t, *mo as usize))
+    });
+    
+    let info = vk::CommandBufferBeginInfo::default();
+    let command_buffer = frame_resources.graphics_command_pool.command_buffer;
+    unsafe { device.device.begin_command_buffer(command_buffer, &info)?; }
+
+    let render_area = vk::Rect2D::default()
+        .offset(vk::Offset2D::default())
+        .extent(swapchain.extent);
+
+    let color_clear_value = vk::ClearValue {
+        color: vk::ClearColorValue {
+            float32: [0.2, 0.2, 0.2, 1.0],
+        },
+    };
+
+    let depth_clear_value = vk::ClearValue {
+        depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 },
+    };
+
+    let clear_values = &[color_clear_value, depth_clear_value];
+    let info = vk::RenderPassBeginInfo::default()
+        .render_pass(render_pass.render_pass)
+        .framebuffer(frame_resources.framebuffer)
+        .render_area(render_area)
+        .clear_values(clear_values);
+
+    unsafe { device.device.cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE); }
+    unsafe {
+        device.device.cmd_bind_descriptor_sets(
+            command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            render_pipeline.pipeline_layout,
+            0,
+            &[frame_resources.descriptor_set, ],
+            &[],
+        );
+    }
+
+    unsafe { device.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, render_pipeline.pipeline); }
+    
+    for (i, data) in datas.iter().enumerate() {
+        unsafe {
+            device.device.cmd_bind_descriptor_sets(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                render_pipeline.pipeline_layout,
+                1,
+                &[material_descriptors[i]],
+                &[],
+            );
+        }
+
+        unsafe {
+            data.iter().for_each(|(t, m)| {
+                let model_bytes = std::slice::from_raw_parts(
+                    t as *const Matrix4<f32> as *const u8,
+                    size_of::<Matrix4<f32>>()
+                );
+                device.device.cmd_push_constants(command_buffer, render_pipeline.pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, model_bytes);
+
+                device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[models[*m].vertex_buffer], &[0]); 
+                 device.device.cmd_bind_index_buffer(command_buffer, models[*m].index_buffer, 0, vk::IndexType::UINT32); 
+
+                device.device.cmd_draw_indexed(command_buffer, models[*m].index_count, 1, 0, 0, 0); 
+            })
+        }
+    }
+    
+    unsafe { device.device.cmd_end_render_pass(command_buffer); }
+
+    unsafe { device.device.end_command_buffer(command_buffer)?; }
+
+
     Ok(())
 }

@@ -26,6 +26,7 @@ impl RenderFrameResource {
         queue_family_index: u32,
         flags: vk::CommandPoolCreateFlags,
         descriptor_set_layout: vk::DescriptorSetLayout,
+        descriptor_set_layout_material: vk::DescriptorSetLayout,
         descriptor_pool: vk::DescriptorPool,
         texture_image_view: vk::ImageView,
         texture_sampler: vk::Sampler,
@@ -55,7 +56,7 @@ impl RenderFrameResource {
             size_of::<UniformBufferObject>() as u64,
         )?;
 
-        let layouts = vec![descriptor_set_layout; 1];
+        let layouts = vec![descriptor_set_layout_material; 1];
         let info = vk::DescriptorSetAllocateInfo::default()
             .descriptor_pool(descriptor_pool)
             .set_layouts(&layouts);

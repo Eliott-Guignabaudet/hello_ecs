@@ -6,7 +6,6 @@ use crate::renderer::buffer::create_buffer;
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct UniformBufferObject {
-    pub model: Matrix4<f32>,
     pub view: Matrix4<f32>,
     pub proj: Matrix4<f32>,
 }
