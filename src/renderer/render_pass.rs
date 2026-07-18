@@ -217,6 +217,63 @@ impl RenderPass {
 
         }
     }
+    
+    pub fn reset(
+        &mut self,
+        instance: &Instance,
+        physical_device: vk::PhysicalDevice,
+        swapchain_format: vk::Format,
+        swapchain_extent: vk::Extent2D,
+        msaa_samples: vk::SampleCountFlags,
+        
+    ) -> Result< (), Box<dyn Error>> {
+        self.depth.destroy();
+        self.color_image.destroy();
+
+        let depth_format = Self::get_depth_format( instance, physical_device)?;
+
+        self.color_image = ImageHandle::new(
+            instance,
+            Arc::clone(&self.device),
+            physical_device,
+            swapchain_extent.width,
+            swapchain_extent.height,
+            1,
+            msaa_samples,
+            swapchain_format,
+            vk::ImageTiling::OPTIMAL,
+            vk::ImageUsageFlags::COLOR_ATTACHMENT
+                | vk::ImageUsageFlags::TRANSIENT_ATTACHMENT,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        )?;
+
+        self.color_image.create_image_view(
+            swapchain_format,
+            vk::ImageAspectFlags::COLOR,
+            1,
+        )?;
+
+        self.depth = ImageHandle::new(
+            instance,
+            Arc::clone(&self.device),
+            physical_device,
+            swapchain_extent.width,
+            swapchain_extent.height,
+            1,
+            msaa_samples,
+            depth_format,
+            vk::ImageTiling::OPTIMAL,
+            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        )?;
+
+        self.depth.create_image_view(
+            depth_format,
+            vk::ImageAspectFlags::DEPTH,
+            1)?;
+        
+        Ok(())
+    }
 }
 
 impl Drop for RenderPass {

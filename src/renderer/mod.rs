@@ -426,8 +426,43 @@ impl HelloRenderer {
         Ok(())
     }
 
-    fn recreate_swapchain(&self, _: &Window) -> Result<(), Box<dyn Error>> {
-        todo!()
+    pub fn recreate_swapchain(&mut self, window: &Window) -> Result<(), Box<dyn Error>> {
+        unsafe { self.device.device.device_wait_idle()?; }
+        self.device.update_swapchain_support(
+            self.surface.surface,
+            &self.surface.surface_loader,
+        )?;
+        self.swapchain.reset(
+            window,
+            self.surface.surface,
+            self.device.queue_family_indices,
+            &self.device.swapchain_support,
+        )?;
+        
+        self.render_pass.reset(
+            &self.instance.instance, 
+            self.device.physical_device, 
+            self.swapchain.format, 
+            self.swapchain.extent, 
+            self.device.msaa_samples)?;
+        
+        self.graphics_pipeline.reset(
+            self.swapchain.extent,
+            self.render_pass.render_pass,
+            Vertex::binding_description(),
+            Vertex::attribute_descriptions(),
+            self.device.msaa_samples,
+        )?;
+        self.frame_resources.iter_mut().enumerate().for_each(|(i,r)| {
+            r.reset(
+                self.swapchain.image_views[i],
+                self.render_pass.depth.image_view.unwrap(),
+                self.render_pass.color_image.image_view.unwrap(),
+                self.swapchain.extent,
+                self.render_pass.render_pass,
+            ).unwrap()
+        });
+        Ok(())
     }
 }
 

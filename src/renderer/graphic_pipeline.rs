@@ -265,13 +265,40 @@ impl GraphicsPipeline {
         let handle = unsafe { device.create_descriptor_pool(&info, None) }?;
         Ok(handle )
     }
+    
+    pub fn reset(
+        &mut self,
+        swapchain_extent: vk::Extent2D,
+        render_pass: vk::RenderPass,
+        vertex_binding_description: vk::VertexInputBindingDescription,
+        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 4],
+        msaa_samples: vk::SampleCountFlags,
+    ) -> Result<(), Box<dyn Error>> {
+        unsafe { self.device.destroy_pipeline(self.pipeline, None) }
+        unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout, None) }
+
+        let (pipeline, pipeline_layout) = Self::create_pipeline(
+            &self.device,
+            swapchain_extent,
+            render_pass,
+            &[self.descriptor_set_layout, self.descriptor_set_layout_material],
+            vertex_binding_description,
+            vertex_attribute_descriptions,
+            msaa_samples,
+        )?;
+        
+        self.pipeline = pipeline;
+        self.pipeline_layout = pipeline_layout;
+        
+        Ok(())
+    }
 }
 
 impl Drop for GraphicsPipeline {
     fn drop(&mut self) {
         unsafe { self.device.destroy_descriptor_pool(self.descriptor_pool, None) }
-        unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout, None) }
         unsafe { self.device.destroy_pipeline(self.pipeline, None) }
+        unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout, None) }
         unsafe { self.device.destroy_descriptor_set_layout(self.descriptor_set_layout_material, None) }
         unsafe { self.device.destroy_descriptor_set_layout(self.descriptor_set_layout, None) }
     }

@@ -87,7 +87,28 @@ impl RenderFrameResource {
         Ok(framebuffer)
 
     }
-    
+
+    pub fn reset(
+        &mut self,
+        swapchain_image_view: vk::ImageView,
+        depth_image_view: vk::ImageView,
+        color_image_view: vk::ImageView,
+        swapchain_extent: vk::Extent2D,
+        render_pass: vk::RenderPass,
+    ) -> Result<(), Box<dyn Error>> {
+        unsafe { self.device.destroy_framebuffer(self.framebuffer, None) }
+        
+        self.framebuffer = Self::create_framebuffer(
+            &self.device,
+            swapchain_image_view,
+            depth_image_view,
+            color_image_view,
+            swapchain_extent,
+            render_pass
+        )?;
+
+        Ok(())
+    }
 }
 
 impl Drop for RenderFrameResource{

@@ -120,6 +120,71 @@ impl RenderSwapchain {
                 ))
         }
     }
+    
+    pub fn reset(
+            &mut self,
+            window: &winit::window::Window,
+            surface: vk::SurfaceKHR,
+
+            queue_family_indices: QueueFamilyIndices,
+            swapchain_support: &SwapchainSupport,
+    )-> Result<(), Box<dyn Error>>{
+        self.image_views.iter().for_each(|i| {
+            unsafe { self.device.destroy_image_view( *i, None) }
+        });
+        unsafe { self.swapchain_loader.destroy_swapchain(self.swapchain, None) }
+
+        let surface_format = Self::get_swapchain_surface_format(&swapchain_support.formats);
+        let present_mode = Self::get_swapchain_present_mode(&swapchain_support.present_modes);
+        self.extent = Self::get_swapchain_extent(window, swapchain_support.capabilities);
+
+        let mut  image_count = swapchain_support.capabilities.min_image_count + 1;
+        if swapchain_support.capabilities.max_image_count != 0
+            && image_count > swapchain_support.capabilities.max_image_count
+        {
+            image_count = swapchain_support.capabilities.max_image_count;
+        }
+
+        let mut queue_family_unique_indices = vec![];
+        let image_sharing_mode = if queue_family_indices.graphics != queue_family_indices.present {
+            queue_family_unique_indices.push(queue_family_indices.graphics);
+            queue_family_unique_indices.push(queue_family_indices.present);
+            vk::SharingMode::CONCURRENT
+        } else {
+            queue_family_unique_indices.push(queue_family_indices.graphics);
+            vk::SharingMode::EXCLUSIVE
+        };
+
+
+        let info = vk::SwapchainCreateInfoKHR::default()
+            .surface(surface)
+            .min_image_count(image_count)
+            .image_format(surface_format.format)
+            .image_color_space(surface_format.color_space)
+            .image_extent(self.extent)
+            .image_array_layers(1)
+            .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
+            .image_sharing_mode(image_sharing_mode)
+            .queue_family_indices(&queue_family_unique_indices)
+            .pre_transform(swapchain_support.capabilities.current_transform)
+            .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
+            .present_mode(present_mode)
+            .clipped(true)
+            .old_swapchain(vk::SwapchainKHR::null());
+
+
+
+        self.swapchain = unsafe { self.swapchain_loader.create_swapchain(&info, None) }?;
+        self.images = unsafe { self.swapchain_loader.get_swapchain_images(self.swapchain) }?;
+        self.format  = surface_format.format;
+
+        self.image_views =  self.images
+            .iter()
+            .map(|i|  create_image_view(&self.device, *i, self.format, vk::ImageAspectFlags::COLOR, 1))
+            .collect::<Result<Vec<_>, _>>()?;
+        
+        Ok(())
+    }
 }
 
 impl Drop for RenderSwapchain {

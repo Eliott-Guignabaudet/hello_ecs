@@ -184,6 +184,10 @@ impl ApplicationHandler for App {
                 renderer.render(window, render_scene).unwrap();
                 self.last_elapsed_time = elapsed_time;
             },
+            WindowEvent::Resized(size) => {
+                renderer.recreate_swapchain(window).unwrap();
+                
+            },
             _ => (),
         }
     }

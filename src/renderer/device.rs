@@ -310,6 +310,15 @@ impl RenderDevice {
 
         Ok((graphic_queue, present_queue, transfer_queue))
     }
+    
+    pub fn update_swapchain_support(
+        &mut self,         
+        surface: vk::SurfaceKHR,
+        surface_loader: &surface::Instance,
+    ) -> Result<(), Box<dyn Error>> {
+        self.swapchain_support = SwapchainSupport::get(surface, self.physical_device, surface_loader)?;
+        Ok(())
+    }
 }
 
 impl Drop for RenderDevice {
