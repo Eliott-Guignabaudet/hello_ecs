@@ -1,8 +1,8 @@
 ﻿use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
-pub struct Position(pub nalgebra::Point3<f32>);
-pub struct Rotation(pub nalgebra::Quaternion<f32>);
+pub struct Position(pub nalgebra::Vector3<f32>);
+pub struct Rotation(pub nalgebra::UnitQuaternion<f32>);
 pub struct Scale(pub nalgebra::Vector3<f32>);
 
 
