@@ -8,6 +8,7 @@ use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 pub struct RenderFrameResource {
     pub framebuffer: vk::Framebuffer,
     pub image_in_flight: vk::Fence,
+    pub render_finished_semaphore: vk::Semaphore,
     pub graphics_command_pool: CommandPool,
     pub uniform_buffer: UniformBuffer,
     pub descriptor_set: vk::DescriptorSet,
@@ -55,14 +56,18 @@ impl RenderFrameResource {
             uniform_buffer.buffer,
             size_of::<UniformBufferObject>() as u64,
         )?;
-        
-        
+
+        let semaphore_info = vk::SemaphoreCreateInfo::default();
+        let render_finished_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }?;
+
+
         Ok(Self {
             framebuffer,
             graphics_command_pool,
             image_in_flight,
             descriptor_set,
             uniform_buffer,
+            render_finished_semaphore,
             device,
         })
     }
@@ -113,6 +118,7 @@ impl RenderFrameResource {
 
 impl Drop for RenderFrameResource{
     fn drop(&mut self) {
+        unsafe { self.device.destroy_semaphore(self.render_finished_semaphore, None) }
         self.graphics_command_pool.destroy();
         unsafe { self.device.destroy_buffer(self.uniform_buffer.buffer, None) }
         unsafe { self.device.free_memory(self.uniform_buffer.buffer_memory, None) }

@@ -24,6 +24,7 @@ use std::error::Error;
 use std::fmt;
 use std::ptr::copy_nonoverlapping;
 use std::sync::Arc;
+use std::sync::atomic::fence;
 use std::time::Instant;
 use ash::vk;
 use ash::vk::Handle;
@@ -103,7 +104,7 @@ pub struct HelloRenderer {
     instance: RenderInstance,
 
     frame: usize,
-    resized: bool,
+    pub resized: bool,
     start: Instant,
 
 }
@@ -297,8 +298,8 @@ impl HelloRenderer {
     }
     
     
-    pub fn render(&mut self,  window: &winit::window::Window, scene: Scene) -> Result<(), Box<dyn Error>>{
-        let _ = &self.frame_syncs[self.frame].wait_for_fence()?;
+    pub fn render(&mut self,  window: &Window, scene: Scene) -> Result<(), Box<dyn Error>>{
+        self.frame_syncs[self.frame].wait_for_fence()?;
 
         let result = unsafe {
             self.swapchain.swapchain_loader
@@ -325,19 +326,19 @@ impl HelloRenderer {
        
         self.update_uniform_buffer(image_index)?;
         self.update_command_buffer(image_index, scene)?;
-
+        
         let wait_semaphores = &[self.frame_syncs[self.frame].image_available_semaphore];
         let wait_stages = &[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let command_buffers = &[self.frame_resources[image_index].graphics_command_pool.command_buffer];
-        let signal_semaphores = &[self.frame_syncs[self.frame].render_finished_semaphore];
+        let signal_semaphores = &[self.frame_resources[image_index].render_finished_semaphore];
         let submit_info = vk::SubmitInfo::default()
             .wait_semaphores(wait_semaphores)
             .wait_dst_stage_mask(wait_stages)
             .command_buffers(command_buffers)
             .signal_semaphores(signal_semaphores);
 
-        let _ = &self.frame_syncs[self.frame].reset_fence()?;
-
+        self.frame_syncs[self.frame].reset_fence()?;
+ 
         unsafe {
             self.device.device.queue_submit(
                 self.device.graphics_queue, &[submit_info], self.frame_syncs[self.frame].in_flight_fence)?;
@@ -349,7 +350,6 @@ impl HelloRenderer {
             .wait_semaphores(signal_semaphores)
             .swapchains(swapchains)
             .image_indices(image_indices);
-
         let result = unsafe {
             self.swapchain.swapchain_loader.queue_present(self.device.present_queue, &present_info)
         };
