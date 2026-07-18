@@ -22,12 +22,18 @@ impl RenderSurface {
                 window.display_handle()?.as_raw(),
                 window.window_handle()?.as_raw(),
                 None)
-        }.unwrap();
+        }?;
 
         let surface_loader = khr::surface::Instance::new(&entry, &instance);
         Ok(Self{
             surface,
             surface_loader,
         })
+    }
+}
+
+impl Drop for RenderSurface {
+    fn drop(&mut self) {
+        unsafe { self.surface_loader.destroy_surface(self.surface, None) }
     }
 }

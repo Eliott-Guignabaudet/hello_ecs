@@ -23,6 +23,7 @@ mod scene;
 use std::error::Error;
 use std::fmt;
 use std::ptr::copy_nonoverlapping;
+use std::sync::Arc;
 use std::time::Instant;
 use ash::vk;
 use ash::vk::Handle;
@@ -81,25 +82,26 @@ const INDICES: &[u32] = &[
 
 
 pub struct HelloRenderer {
-    instance: RenderInstance,
-    surface: RenderSurface,
-    device: RenderDevice,
-    swapchain: RenderSwapchain,
-    render_pass: RenderPass,
-    graphics_pipeline: GraphicsPipeline,
-    frame_resources: Vec<RenderFrameResource>,
-    frame_syncs: Vec<FrameSync>,
-    
-    // resources
-    models: Vec<Model>,
-    textures: Vec<Texture>,
-    materials: Vec<Material>,
-    
     //resources descriptors
     materials_descriptor_pool: vk::DescriptorPool,
-    materials_uniform_buffers: Vec<UniformBuffer>,
     materials_descriptor_sets: Vec<vk::DescriptorSet>,
+    materials_uniform_buffers: Vec<UniformBuffer>,
     
+    // resources
+    materials: Vec<Material>,
+    models: Vec<Model>,
+    textures: Vec<Texture>,
+    
+
+    frame_syncs: Vec<FrameSync>,
+    frame_resources: Vec<RenderFrameResource>,
+    graphics_pipeline: GraphicsPipeline,
+    render_pass: RenderPass,
+    swapchain: RenderSwapchain,
+    device: RenderDevice,
+    surface: RenderSurface,
+    instance: RenderInstance,
+
     frame: usize,
     resized: bool,
     start: Instant,
@@ -118,7 +120,7 @@ impl HelloRenderer {
         let swapchain = RenderSwapchain::new(
             window, 
             &instance.instance, 
-            &device.device,
+            Arc::clone(&device.device),
             surface.surface,
             device.queue_family_indices,
             &device.swapchain_support,
@@ -126,7 +128,7 @@ impl HelloRenderer {
         
         let render_pass = RenderPass::new(
             &instance.instance,
-            &device.device,
+            Arc::clone(&device.device),
             device.physical_device,
             swapchain.format,
             swapchain.extent,
@@ -134,7 +136,7 @@ impl HelloRenderer {
         )?;
         
         let graphics_pipeline = GraphicsPipeline::new(
-            &device.device,
+            Arc::clone(&device.device),
             swapchain.extent,
             render_pass.render_pass,
             Vertex::binding_description(),
@@ -148,7 +150,7 @@ impl HelloRenderer {
             .map(|i| {
                 RenderFrameResource::new(
                     &instance.instance,
-                    &device.device,
+                    Arc::clone(&device.device),
                     device.physical_device,
                     *i,
                     render_pass.depth.image_view.unwrap(),
@@ -164,7 +166,7 @@ impl HelloRenderer {
             .collect::<Result<Vec<_>, _>>()?;
         let mut frame_syncs = vec![];
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
-            frame_syncs.push(FrameSync::new(&device.device)?);
+            frame_syncs.push(FrameSync::new(Arc::clone(&device.device))?);
         }
         
         let models = vec![];
@@ -202,7 +204,7 @@ impl HelloRenderer {
         texture_paths.iter().for_each(|p| {
             let texture = Texture::new(
                 &self.instance.instance,
-                &self.device.device,
+                Arc::clone(&self.device.device),
                 self.device.physical_device,
                 p,
                 self.device.transfer_queue,
@@ -265,7 +267,7 @@ impl HelloRenderer {
     pub fn load_model_from_path(&mut self, path: &str, correction: Matrix4<f32>) -> Result<(), Box<dyn Error>>{
         let new_model = Model::new_from_path(
             &self.instance.instance,
-            &self.device.device,
+            Arc::clone(&self.device.device),
             self.device.physical_device, 
             self.device.transfer_queue,
             self.device.transfer_command_pool.command_pool,
@@ -281,7 +283,7 @@ impl HelloRenderer {
     pub fn load_model_from_raw_data(&mut self,  vertices: Vec<Vertex>, indices: Vec<u32>) -> Result<(), Box<dyn Error>>{
         let new_model = Model::new_from_raw_data(
             &self.instance.instance,
-            &self.device.device,
+            Arc::clone(&self.device.device),
             self.device.physical_device,
             self.device.transfer_queue,
             self.device.transfer_command_pool.command_pool,
@@ -296,7 +298,7 @@ impl HelloRenderer {
     
     
     pub fn render(&mut self,  window: &winit::window::Window, scene: Scene) -> Result<(), Box<dyn Error>>{
-        let _ = &self.frame_syncs[self.frame].wait_for_fence(&self.device.device)?;
+        let _ = &self.frame_syncs[self.frame].wait_for_fence()?;
 
         let result = unsafe {
             self.swapchain.swapchain_loader
@@ -334,7 +336,7 @@ impl HelloRenderer {
             .command_buffers(command_buffers)
             .signal_semaphores(signal_semaphores);
 
-        let _ = &self.frame_syncs[self.frame].reset_fence(&self.device.device)?;
+        let _ = &self.frame_syncs[self.frame].reset_fence()?;
 
         unsafe {
             self.device.device.queue_submit(
@@ -426,6 +428,24 @@ impl HelloRenderer {
 
     fn recreate_swapchain(&self, _: &Window) -> Result<(), Box<dyn Error>> {
         todo!()
+    }
+}
+
+impl Drop for HelloRenderer {
+    fn drop(&mut self) {
+        unsafe { self.device.device.device_wait_idle().unwrap() }
+
+        unsafe { self.device.device.destroy_descriptor_pool(self.materials_descriptor_pool, None) }
+        self.materials_uniform_buffers.iter().for_each(|u| {
+            unsafe { self.device.device.destroy_buffer(u.buffer, None) }
+            unsafe { self.device.device.free_memory(u.buffer_memory, None) }
+        });
+        
+        self.textures.iter_mut().for_each(|t| {
+            unsafe { self.device.device.destroy_sampler(t.sampler, None) }
+            t.texture.destroy();
+        })
+        
     }
 }
 

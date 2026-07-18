@@ -1,14 +1,17 @@
 use std::error::Error;
+use std::sync::Arc;
 use ash::{vk, Device};
 
-pub struct CommandPool {
+pub struct CommandPool{
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
+    
+    device: Arc<Device>
 }
 
 impl CommandPool {
     pub fn new(
-        device: &Device,
+        device: Arc<Device>,
         queue_family_index: u32,
         flags: vk::CommandPoolCreateFlags,
     ) -> Result<Self, Box<dyn Error>> {
@@ -28,6 +31,7 @@ impl CommandPool {
         Ok(Self {
             command_pool,
             command_buffer,
+            device,
         })
     }
     
@@ -35,5 +39,10 @@ impl CommandPool {
         unsafe { device.reset_command_buffer(self.command_buffer, vk::CommandBufferResetFlags::empty())? }
         
         Ok(())
+    }
+    
+    pub fn destroy(&mut self){
+        unsafe { self.device.free_command_buffers(self.command_pool, &[self.command_buffer]) }
+        unsafe { self.device.destroy_command_pool(self.command_pool, None) }
     }
 }

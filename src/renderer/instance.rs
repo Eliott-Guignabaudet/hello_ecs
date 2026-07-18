@@ -17,6 +17,7 @@ pub struct RenderInstance {
     pub entry: Entry,
     pub instance: Instance,
     debug_callback: vk::DebugUtilsMessengerEXT,
+    debug_utils_loader: debug_utils::Instance,
 }
 
 impl RenderInstance {
@@ -90,7 +91,15 @@ impl RenderInstance {
             entry,
             instance,
             debug_callback,
+            debug_utils_loader,
         })
+    }
+}
+
+impl Drop for RenderInstance {
+    fn drop(&mut self) {
+        unsafe { self.debug_utils_loader.destroy_debug_utils_messenger(self.debug_callback, None); }
+        unsafe { self.instance.destroy_instance(None) }
     }
 }
 

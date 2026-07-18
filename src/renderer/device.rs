@@ -1,6 +1,8 @@
 ﻿use std::collections::HashSet;
 use std::error::Error;
 use std::ffi::CStr;
+use std::mem;
+use std::sync::Arc;
 use ash::khr::{surface};
 use ash::{vk, Device, Instance};
 use thiserror::Error;
@@ -101,7 +103,6 @@ impl QueueFamilyIndices {
 
 
 pub struct RenderDevice{
-    pub device: Device,
     pub physical_device: vk::PhysicalDevice,
     
     pub queue_family_indices: QueueFamilyIndices,
@@ -115,6 +116,7 @@ pub struct RenderDevice{
     pub graphics_command_pool: CommandPool,
 
     pub msaa_samples: vk::SampleCountFlags,
+    pub device: Arc<Device>,
     
     
 }
@@ -137,15 +139,15 @@ impl RenderDevice {
 
         let (graphics_queue, present_queue, transfer_queue) = Self::get_device_queues(&device, queue_family_indices)?;
         let swapchain_support = SwapchainSupport::get(surface, physical_device, surface_loader)?;
-        
+        let device = Arc::new(device);
         let graphics_command_pool = CommandPool::new(
-            &device,
+            Arc::clone(&device),
             queue_family_indices.graphics,
             vk::CommandPoolCreateFlags::TRANSIENT,
         )?;
         
         let transfer_command_pool = CommandPool::new(
-            &device,
+            Arc::clone(&device),
             queue_family_indices.transfer,
             vk::CommandPoolCreateFlags::TRANSIENT,
         )?;
@@ -307,5 +309,13 @@ impl RenderDevice {
         let transfer_queue = unsafe { device.get_device_queue(indices.transfer, 0) };
 
         Ok((graphic_queue, present_queue, transfer_queue))
+    }
+}
+
+impl Drop for RenderDevice {
+    fn drop(&mut self) {
+        self.graphics_command_pool.destroy();
+        self.transfer_command_pool.destroy();
+        unsafe { self.device.destroy_device(None) }
     }
 }

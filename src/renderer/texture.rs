@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fs::File;
 use std::path::Path;
 use std::ptr::copy_nonoverlapping;
+use std::sync::Arc;
 use ash::{vk, Device, Instance};
 use crate::renderer::buffer::{copy_buffer_to_image, create_buffer};
 use crate::renderer::command::{begin_single_time_commands, end_single_time_commands};
@@ -17,7 +18,7 @@ pub struct Texture{
 impl Texture {
     pub fn new(
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         physical_device: vk::PhysicalDevice,
         resource_path: &dyn AsRef<Path>,
         transfer_queue: vk::Queue,
@@ -28,7 +29,7 @@ impl Texture {
     ) -> Result<Self, Box<dyn Error>>{
         let (mut texture, mip_levels) = Self::create_texture_image(
             instance,
-            device,
+            Arc::clone(&device),
             physical_device,
             resource_path,
             transfer_queue,
@@ -37,7 +38,6 @@ impl Texture {
             graphics_command_pool,
         )?;
         texture.create_image_view(
-            device,
             vk::Format::R8G8B8A8_SRGB,
             vk::ImageAspectFlags::COLOR,
             mip_levels
@@ -69,7 +69,7 @@ impl Texture {
 
     fn create_texture_image(
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         physical_device: vk::PhysicalDevice,
         resource_path: &dyn AsRef<Path>,
         transfer_queue: vk::Queue,
@@ -97,7 +97,7 @@ impl Texture {
 
         let (staging_buffer, staging_buffer_memory) = create_buffer(
             instance,
-            device,
+            &device,
             physical_device,
             size,
             vk::BufferUsageFlags::TRANSFER_SRC,
@@ -120,7 +120,7 @@ impl Texture {
 
         let image_handle = ImageHandle::new(
             instance,
-            device,
+            Arc::clone(&device),
             physical_device,
             width,
             height,
@@ -135,7 +135,7 @@ impl Texture {
         )?;
         
         transition_image_layout(
-            device,
+            &device,
             image_handle.image,
             vk::Format::R8G8B8A8_SRGB,
             vk::ImageLayout::UNDEFINED,
@@ -146,7 +146,7 @@ impl Texture {
         )?;
 
         copy_buffer_to_image(
-            device,
+            &device,
             staging_buffer,
             image_handle.image,
             width,
@@ -161,7 +161,7 @@ impl Texture {
 
         Self::generate_mipmaps(
             instance,
-            device,
+            &device,
             physical_device,
             image_handle.image,
             vk::Format::R8G8B8A8_SRGB,

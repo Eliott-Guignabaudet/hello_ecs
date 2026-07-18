@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 use ash::{vk, Device, Instance};
 use ash::khr::swapchain;
 use crate::renderer::device::{QueueFamilyIndices, SwapchainSupport};
@@ -10,21 +11,22 @@ pub struct RenderSwapchain {
     pub format: vk::Format,
     pub extent: vk::Extent2D,
     pub images: Vec<vk::Image>,
-    pub image_views: Vec<vk::ImageView>
+    pub image_views: Vec<vk::ImageView>,
+    device: Arc<Device>
 }
 
 impl RenderSwapchain {
     pub fn new(
         window: &winit::window::Window,
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         surface: vk::SurfaceKHR,
         
         queue_family_indices: QueueFamilyIndices,
         swapchain_support: &SwapchainSupport,
     ) -> Result<Self, Box<dyn Error>> {
 
-        let swapchain_loader = ash::khr::swapchain::Device::new(instance, device);
+        let swapchain_loader = ash::khr::swapchain::Device::new(instance, &device);
         let surface_format = Self::get_swapchain_surface_format(&swapchain_support.formats);
         let present_mode = Self::get_swapchain_present_mode(&swapchain_support.present_modes);
         let extent = Self::get_swapchain_extent(window, swapchain_support.capabilities);
@@ -71,10 +73,10 @@ impl RenderSwapchain {
 
         let image_views  = images
             .iter()
-            .map(|i|  create_image_view(device, *i, format, vk::ImageAspectFlags::COLOR, 1))
+            .map(|i|  create_image_view(&device, *i, format, vk::ImageAspectFlags::COLOR, 1))
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(Self{ swapchain_loader, swapchain, format, extent, images, image_views})
+        Ok(Self{ swapchain_loader, swapchain, format, extent, images, image_views, device})
     }
 
     fn get_swapchain_surface_format(
@@ -118,6 +120,14 @@ impl RenderSwapchain {
                 ))
         }
     }
+}
 
-
+impl Drop for RenderSwapchain {
+    fn drop(&mut self) {
+        self.image_views.iter().for_each(|i| {
+            unsafe { self.device.destroy_image_view( *i, None) }
+        });
+        
+        unsafe { self.swapchain_loader.destroy_swapchain(self.swapchain, None) }
+    }
 }

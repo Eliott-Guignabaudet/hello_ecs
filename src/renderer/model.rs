@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::ptr::copy_nonoverlapping;
+use std::sync::Arc;
 use ash::{vk, Device, Instance};
 use nalgebra::{Vector2, Vector3};
 use crate::renderer::buffer::{copy_buffer, create_buffer};
@@ -13,12 +14,14 @@ pub struct Model {
     pub index_buffer_memory: vk::DeviceMemory,
     pub vertex_buffer: vk::Buffer,
     pub vertex_buffer_memory: vk::DeviceMemory,
+    
+    device: Arc<Device>
 }
 
 impl Model{
     pub fn new_from_path(
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         physical_device: vk::PhysicalDevice,
         copy_queue: vk::Queue,
         copy_command_pool: vk::CommandPool,
@@ -29,7 +32,7 @@ impl Model{
         let (vertices, indices) = load_model(path, correction)?;
         let (vertex_buffer, vertex_buffer_memory)= Self::create_vertex_buffer(
             instance,
-            device,
+            &device,
             physical_device,
             &vertices,
             copy_queue,
@@ -37,7 +40,7 @@ impl Model{
         )?;
         let( index_buffer, index_buffer_memory )= Self::create_index_buffer(
             instance,
-            device,
+            &device,
             physical_device,
             &indices,
             copy_queue,
@@ -51,12 +54,13 @@ impl Model{
             vertex_buffer_memory,
             index_buffer,
             index_buffer_memory,
+            device,
         })
     }
 
     pub fn new_from_raw_data(
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         physical_device: vk::PhysicalDevice,
         copy_queue: vk::Queue,
         copy_command_pool: vk::CommandPool,
@@ -65,7 +69,7 @@ impl Model{
     ) -> Result<Self, Box<dyn Error>>  {
         let (vertex_buffer, vertex_buffer_memory)= Self::create_vertex_buffer(
             instance,
-            device,
+            &device,
             physical_device,
             &vertices,
             copy_queue,
@@ -73,7 +77,7 @@ impl Model{
         )?;
         let( index_buffer, index_buffer_memory )= Self::create_index_buffer(
             instance,
-            device,
+            &device,
             physical_device,
             &indices,
             copy_queue,
@@ -87,6 +91,7 @@ impl Model{
             vertex_buffer_memory,
             index_buffer,
             index_buffer_memory,
+            device
         })
     }
     
@@ -193,6 +198,15 @@ impl Model{
         Ok((buffer, buffer_memory))
     }
     
+}
+
+impl Drop for Model {
+    fn drop(&mut self) {
+        unsafe { self.device.destroy_buffer(self.index_buffer, None) }
+        unsafe { self.device.free_memory(self.index_buffer_memory, None) }
+        unsafe { self.device.destroy_buffer(self.vertex_buffer, None) }
+        unsafe { self.device.free_memory(self.vertex_buffer_memory, None) }
+    }
 }
 
 fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> Result<(Vec<Vertex>, Vec<u32>), Box<dyn Error>> {

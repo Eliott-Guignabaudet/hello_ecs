@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 use ash::{vk, Device};
 use ash::vk::ColorComponentFlags;
 
@@ -9,12 +10,13 @@ pub struct GraphicsPipeline{
     pub descriptor_set_layout_material: vk::DescriptorSetLayout,
     pub descriptor_pool: vk::DescriptorPool,
     
+    device: Arc<Device>
 }
 
 
 impl GraphicsPipeline {
     pub fn new(
-        device: &Device,
+        device: Arc<Device>,
         swapchain_extent: vk::Extent2D,
         render_pass: vk::RenderPass,
         vertex_binding_description: vk::VertexInputBindingDescription,
@@ -23,12 +25,12 @@ impl GraphicsPipeline {
         swapchain_image_count: u32,
     ) -> Result<Self, Box<dyn Error>> {
         
-        let descriptor_set_layout = Self::create_descriptor_set_layout(device)?;
-        let descriptor_set_layout_material = Self::create_descriptor_set_layout_material(device)?;
+        let descriptor_set_layout = Self::create_descriptor_set_layout(&device)?;
+        let descriptor_set_layout_material = Self::create_descriptor_set_layout_material(&device)?;
         
         
         let (pipeline, pipeline_layout) = Self::create_pipeline(
-            device,
+            &device,
             swapchain_extent,
             render_pass,
             &[descriptor_set_layout, descriptor_set_layout_material],
@@ -38,7 +40,7 @@ impl GraphicsPipeline {
         )?;
         
         let descriptor_pool = Self::create_descriptor_pool(
-            device,
+            &device,
             swapchain_image_count * 2
         )?;
         
@@ -48,6 +50,7 @@ impl GraphicsPipeline {
             descriptor_set_layout,
             descriptor_set_layout_material,
             descriptor_pool,
+            device,
         })
         
     }
@@ -261,5 +264,15 @@ impl GraphicsPipeline {
             .max_sets(descriptor_count);
         let handle = unsafe { device.create_descriptor_pool(&info, None) }?;
         Ok(handle )
+    }
+}
+
+impl Drop for GraphicsPipeline {
+    fn drop(&mut self) {
+        unsafe { self.device.destroy_descriptor_pool(self.descriptor_pool, None) }
+        unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout, None) }
+        unsafe { self.device.destroy_pipeline(self.pipeline, None) }
+        unsafe { self.device.destroy_descriptor_set_layout(self.descriptor_set_layout_material, None) }
+        unsafe { self.device.destroy_descriptor_set_layout(self.descriptor_set_layout, None) }
     }
 }

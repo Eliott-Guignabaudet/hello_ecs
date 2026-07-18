@@ -1,17 +1,21 @@
 use std::error::Error;
+use std::sync::Arc;
 use ash::{vk, Device, Instance};
+use ash::vk::ImageView;
 use crate::renderer::buffer::get_memory_type_index;
 
 pub struct ImageHandle {
     pub image: vk::Image,
     pub image_memory: vk::DeviceMemory,
     pub image_view: Option<vk::ImageView>,
+    
+    device: Arc<Device>,
 }
 
 impl ImageHandle {
     pub fn new(
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         physical_device: vk::PhysicalDevice,
         width: u32,
         height: u32,
@@ -58,12 +62,12 @@ impl ImageHandle {
             image,
             image_memory,
             image_view: None,
+            device,
         })
     }
     
     pub fn create_image_view(
         &mut self,
-        device: &Device,
         format: vk::Format,
         aspects: vk::ImageAspectFlags,
         mip_levels: u32,
@@ -80,7 +84,16 @@ impl ImageHandle {
             .view_type(vk::ImageViewType::TYPE_2D)
             .format(format)
             .subresource_range(subresource_range);
-        self.image_view = Some(unsafe {device.create_image_view(&info, None)? });
+        self.image_view = Some(unsafe {self.device.create_image_view(&info, None)? });
         Ok(())
+    }
+    
+    pub fn destroy(&mut self) {
+        match self.image_view {
+            None => {}
+            Some(image_view) => unsafe { self.device.destroy_image_view(image_view, None) }
+        }
+        unsafe { self.device.destroy_image(self.image, None) }
+        unsafe { self.device.free_memory(self.image_memory, None) }
     }
 }

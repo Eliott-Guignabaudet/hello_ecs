@@ -1,18 +1,21 @@
 use std::error::Error;
+use std::sync::Arc;
 use ash::{vk, Device, Instance};
 use crate::renderer::image::ImageHandle;
 use crate::renderer::VulkanError;
 
 pub struct RenderPass {
-    pub render_pass: vk::RenderPass,
     pub color_image: ImageHandle,
     pub depth: ImageHandle,
+    
+    pub render_pass: vk::RenderPass,
+    device: Arc<Device>
 }
 
 impl RenderPass {
     pub fn new(
         instance: &Instance,
-        device: &Device,
+        device: Arc<Device>,
         physical_device: vk::PhysicalDevice,
         swapchain_format: vk::Format,
         swapchain_extent: vk::Extent2D,
@@ -21,7 +24,7 @@ impl RenderPass {
         let depth_format = Self::get_depth_format( instance, physical_device)?;
         
         let render_pass = Self::create_render_pass(
-            device,
+            &device,
             swapchain_format,
             depth_format,
             msaa_samples,
@@ -29,7 +32,7 @@ impl RenderPass {
 
         let mut color_image = ImageHandle::new(
             instance, 
-            device, 
+            Arc::clone(&device), 
             physical_device,
             swapchain_extent.width,
             swapchain_extent.height,
@@ -43,7 +46,6 @@ impl RenderPass {
         )?; 
         
         color_image.create_image_view(
-            device,
             swapchain_format,
             vk::ImageAspectFlags::COLOR,
             1,
@@ -51,7 +53,7 @@ impl RenderPass {
         
         let mut depth = ImageHandle::new(
             instance,
-            device,
+            Arc::clone(&device),
             physical_device,
             swapchain_extent.width,
             swapchain_extent.height,
@@ -64,7 +66,6 @@ impl RenderPass {
         )?;
         
         depth.create_image_view(
-            device,
             depth_format,
             vk::ImageAspectFlags::DEPTH,
             1)?;
@@ -72,7 +73,8 @@ impl RenderPass {
         Ok(Self {
             render_pass,
             color_image,
-            depth
+            depth,
+            device,
         })
     }
     
@@ -214,5 +216,13 @@ impl RenderPass {
             }
 
         }
+    }
+}
+
+impl Drop for RenderPass {
+    fn drop(&mut self) {
+        self.depth.destroy();
+        self.color_image.destroy();
+        unsafe { self.device.destroy_render_pass(self.render_pass, None) }
     }
 }

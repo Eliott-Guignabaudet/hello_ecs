@@ -151,6 +151,7 @@ impl ApplicationHandler for App {
                 self.idx
             );
             self.window_id = None;
+            self.renderer = None;
             event_loop.exit();
             return;
         }
