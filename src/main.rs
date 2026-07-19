@@ -7,7 +7,7 @@ use std::time::Instant;
 use nalgebra::{Matrix4, UnitQuaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
-use itertools::multizip;
+use itertools::{multizip};
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -18,15 +18,35 @@ use crate::renderer::{CameraData, DirectionalLight, Material, Scene};
 use crate::renderer::HelloRenderer;
 
 const ENTITIES_TO_SPAWN: u32 = 5;
+const LIGHT_POS: Vector3<f32> = Vector3::new(0.0, 20.0, 10.0 );
 
 fn create_entities(world: &mut World) {
+    // Create Frogs
     for i in 0..ENTITIES_TO_SPAWN {
         let new_entity = world.spawn();
         world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -2.0, 0.0, 0.0)});
         world.add_component_to_entity(new_entity, Rotation { 0: UnitQuaternion::identity() });
         world.add_component_to_entity(new_entity, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
-        world.add_component_to_entity(new_entity, MeshRenderer {mesh_idx: 0, material_idx: 0})
+        world.add_component_to_entity(new_entity, MeshData {mesh_idx: 0, material_idx: 0});
+        world.add_component_to_entity(new_entity, AngularVelocity { velocity: Vector3::new(0.0, 0.0, 90.0_f32.to_radians())});
     }
+    
+    // Create Light
+    let light_object = world.spawn();
+    world.add_component_to_entity(light_object, Position { 0: LIGHT_POS });
+    world.add_component_to_entity(light_object, Rotation { 0: UnitQuaternion::identity() });
+    world.add_component_to_entity(light_object, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
+    world.add_component_to_entity(light_object, MeshData {mesh_idx: 1, material_idx: 1});
+    
+    // Create Camera
+    let camera = world.spawn();
+    let cam_data = create_camera();
+    world.add_component_to_entity(camera, Position { 0: cam_data.position });
+    world.add_component_to_entity(camera, Rotation { 0: cam_data.rotation });
+    world.add_component_to_entity(camera, Camera{});
+    world.add_component_to_entity(camera, CameraMovementInput {0: MovementFlags::empty()});
+    world.add_component_to_entity(camera, CameraRotationInput {0: (0.0, 0.0)});
+    
 }
 fn print_transforms(world : &World){
     let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
@@ -49,19 +69,24 @@ fn print_transforms(world : &World){
 
 fn rotate_objects(world: &World, delta_time: f32) {
     let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
-
-    rotations.iter_mut().for_each(|r| {
-        let rotation_mut = r.as_mut().unwrap();
-        rotation_mut.0 = rotation_mut.0.append_axisangle_linearized(&Vector3::new(0.0, 0.0, 90.0_f32.to_radians() * delta_time));
+    let mut angular_velocity = world.borrow_component_vec_mut::<AngularVelocity>().unwrap();
+    let zip = rotations.iter_mut().zip(angular_velocity.iter_mut());
+    let iter = zip.filter_map(|(r, av)| {
+        Some((r.as_mut()?, av.as_mut()?))
     });
+
+    for (rotation, angular_velocity) in iter {
+        rotation.0 = rotation.0.append_axisangle_linearized(&(angular_velocity.velocity * delta_time));
+    }
 }
 
-fn create_render_scene(world: &World, camera_data: CameraData) -> Scene {
+fn create_render_scene(world: &World) -> Scene {
     let mut render_scene = Scene::default();
     let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
     let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
     let mut scales = world.borrow_component_vec_mut::<Scale>().unwrap();
-    let mut meh_renderers = world.borrow_component_vec_mut::<MeshRenderer>().unwrap();
+    let mut meh_renderers = world.borrow_component_vec_mut::<MeshData>().unwrap();
+    let mut cameras = world.borrow_component_vec_mut::<Camera>().unwrap();
 
     let zip = multizip((positions.iter_mut(), rotations.iter_mut(), scales.iter_mut(), meh_renderers.iter_mut()));
     let iter = zip.filter_map(|(p, r, s, m)| {
@@ -76,16 +101,24 @@ fn create_render_scene(world: &World, camera_data: CameraData) -> Scene {
         render_scene.material_idxs.push(mesh_renderer.material_idx);
         
     }
-    render_scene.camera_data = camera_data;
+    let zip = multizip((positions.iter_mut(), rotations.iter_mut(), cameras.iter_mut()));
+    let iter = zip.filter_map(|(p, r, c)| {
+        Some((p.as_mut()?, r.as_mut()?, c.as_mut()?))
+    });
+    for (position, rotation, _) in iter {
+        render_scene.camera_data = CameraData{ position: position.0, rotation: rotation.0};
+    }
+    
+    
     render_scene.directional_light = DirectionalLight {
-        position: Vector3::new(0.0, 20.0, 10.0)
+        position: LIGHT_POS
     };
+    
     
     render_scene
 }
 
 fn create_camera() -> CameraData {
-    
     let rotation =
         UnitQuaternion::from_axis_angle(&Vector3::x_axis(), 125.0_f32.to_radians())
             *   UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 180.0_f32.to_radians())
@@ -94,21 +127,56 @@ fn create_camera() -> CameraData {
     CameraData { position, rotation }
 }
 
-fn get_new_camera_transform(delta_time: f32, camera_data: CameraData, mouse_delta: (f64, f64), movement_flags: MovementFlags) -> CameraData{
-    let rotation_speed = 0.1;
-    let cam_speed = 3.0;
-    let new_rotation = 
-        UnitQuaternion::from_axis_angle(&Vector3::z_axis(), (-mouse_delta.0 as f32 * rotation_speed).to_radians())
-        * camera_data.rotation
-        * UnitQuaternion::from_axis_angle(&Vector3::x_axis(), (-mouse_delta.1 as f32 * rotation_speed).to_radians());
 
-    let mut movement_vector = get_camera_movement(movement_flags);
-    movement_vector = new_rotation.transform_vector(&movement_vector);
-    let new_position = camera_data.position + movement_vector * delta_time * cam_speed;
-    CameraData{
-        rotation: new_rotation,
-        position: new_position
-    }
+fn update_camera_movements_inputs(world: &World, movement_flags: MovementFlags){
+    let mut camera_movement = world.borrow_component_vec_mut::<CameraMovementInput>().unwrap();
+    camera_movement
+        .iter_mut()
+        .filter_map(|c| Some(c.as_mut()?))
+        .for_each(|c| c.0 = movement_flags)
+}
+fn update_camera_rotation_inputs(world: &World, mouse_input_delta: (f64, f64)){
+    let mut camera_rotation = world.borrow_component_vec_mut::<CameraRotationInput>().unwrap();
+    camera_rotation
+        .iter_mut()
+        .filter_map(|c| Some(c.as_mut()?))
+        .for_each(|c| c.0 = mouse_input_delta)
+}
+
+fn rotate_cameras(world: &World){
+    let rotation_speed = 0.1;
+
+    let mut camera_rotation = world.borrow_component_vec_mut::<CameraRotationInput>().unwrap();
+    let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
+    
+    camera_rotation
+        .iter_mut()
+        .zip(rotations.iter_mut())
+        .filter_map(|(c, r)| Some((c.as_mut()?, r.as_mut()?)))
+        .for_each(|(c, r)| {
+            r.0 =  UnitQuaternion::from_axis_angle(&Vector3::z_axis(), (-c.0.0 as f32 * rotation_speed).to_radians())
+                * r.0
+                * UnitQuaternion::from_axis_angle(&Vector3::x_axis(), (-c.0.1 as f32 * rotation_speed).to_radians());
+        });
+    
+}
+
+fn move_cameras(world: &World, delta_time: f32) {
+    let cam_speed = 3.0;
+    let mut camera_movements = world.borrow_component_vec_mut::<CameraMovementInput>().unwrap();
+    let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
+    let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
+    
+    multizip(
+        (camera_movements.iter_mut(), 
+         positions.iter_mut(), 
+         rotations.iter_mut()))
+        .filter_map(|(c, p, r)| Some((c.as_mut()?, p.as_mut()?, r.as_mut()?)))
+        .for_each(|(c, p, r)| {
+            let mut movement_vector = get_camera_movement(c.0);
+            movement_vector = r.0.transform_vector(&movement_vector);
+            p.0 = p.0 + movement_vector * delta_time * cam_speed;
+        });
 }
 
 
@@ -120,7 +188,6 @@ struct App {
     ecs_world: World,
     time: Instant,
     last_elapsed_time: f32,
-    camera_data: CameraData,
     mouse_delta: (f64, f64),
     camera_movement_flag: MovementFlags,
     is_focused: bool,
@@ -137,7 +204,6 @@ impl App {
             ecs_world,
             time: Instant::now(),
             last_elapsed_time: 0.0,
-            camera_data: CameraData::default(),
             mouse_delta: (0.0, 0.0),
             camera_movement_flag: MovementFlags::empty(),
             is_focused: false,
@@ -158,15 +224,16 @@ impl ApplicationHandler for App {
         self.can_focus = false;
         let mut renderer = HelloRenderer::new(&window).unwrap();
         
-        let texture_paths : Vec<&str> = vec!["resources/T_Yoyo_Albedo.png"];
+        let texture_paths : Vec<&str> = vec!["resources/T_Yoyo_Albedo.png", "resources/empty.png"];
         
         let materials : Vec<Material> = vec![
-               Material { base_color : Vector4::new(1.0, 1.0, 1.0, 1.0) , texture_index: Some(0)}
+               Material { base_color : Vector4::new(1.0, 1.0, 1.0, 1.0) , texture_index: Some(0)},
+               Material { base_color : Vector4::new(1.0, 1.0, 1.0, 1.0) , texture_index: Some(1)},
         ];
         renderer.load_material_resources(materials, texture_paths).unwrap();
         let correction = Matrix4::new_rotation(Vector3::new(90.0_f32.to_radians(), 0.0, 0.0));
         renderer.load_model_from_path("resources/yoyo.obj", correction).unwrap();
-        self.camera_data = create_camera();
+        renderer.load_model_from_path("resources/cube.obj", correction).unwrap();
         
         self.window_id = Some(window.id());
         self.window = Some(window);
@@ -208,13 +275,18 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let elapsed_time = self.time.elapsed().as_secs_f32();
                 let delta_time = elapsed_time - self.last_elapsed_time;
+                
+                // input systems
+                update_camera_movements_inputs(&self.ecs_world, self.camera_movement_flag);
+                update_camera_rotation_inputs(&self.ecs_world, self.mouse_delta);
+                
+                // update systems
                 rotate_objects(&self.ecs_world, delta_time);
-                let render_scene = create_render_scene(&self.ecs_world, self.camera_data);
-                self.camera_data = get_new_camera_transform(
-                    delta_time, 
-                    self.camera_data, 
-                    self.mouse_delta, 
-                    self.camera_movement_flag);
+                rotate_cameras(&self.ecs_world);
+                move_cameras(&self.ecs_world, delta_time);
+                
+                // draw systems
+                let render_scene = create_render_scene(&self.ecs_world);
                 
                 renderer.render(window, render_scene).unwrap();
                 self.last_elapsed_time = elapsed_time;
@@ -293,10 +365,20 @@ impl ApplicationHandler for App {
 }
 
 #[derive(Debug)]
-struct MeshRenderer {
+struct MeshData {
     mesh_idx: u32,
     material_idx: u32,
 }
+
+struct AngularVelocity{
+    velocity: Vector3<f32>
+}
+
+struct Camera;
+struct CameraMovementInput(MovementFlags);
+struct CameraRotationInput((f64, f64));
+
+
 
 fn main() -> anyhow::Result<()>{
     println!("Hello, ecs!");
