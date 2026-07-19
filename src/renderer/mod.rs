@@ -29,7 +29,7 @@ use std::time::Instant;
 use ash::vk;
 use ash::vk::Handle;
 use itertools::multizip;
-use nalgebra::{Matrix4, Point3, Vector2, Vector3};
+use nalgebra::{Matrix4, Point3, UnitQuaternion, UnitVector3, Vector2, Vector3};
 use winit::window::Window;
 
 
@@ -48,7 +48,7 @@ use crate::renderer::texture::Texture;
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 
 pub use crate::renderer::material::{Material};
-pub use crate::renderer::scene::Scene;
+pub use crate::renderer::scene::{Scene, CameraData};
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 #[derive(Debug)]
@@ -324,7 +324,7 @@ impl HelloRenderer {
 
         self.frame_resources[image_index].image_in_flight =  self.frame_syncs[self.frame].in_flight_fence;
        
-        self.update_uniform_buffer(image_index)?;
+        self.update_uniform_buffer(image_index, &scene)?;
         self.update_command_buffer(image_index, scene)?;
         
         let wait_semaphores = &[self.frame_syncs[self.frame].image_available_semaphore];
@@ -367,13 +367,12 @@ impl HelloRenderer {
         Ok(())
     }
     
-    fn update_uniform_buffer(&mut self, image_index: usize) -> Result<(), Box<dyn Error>> {
-        let view = Matrix4::look_at_rh(
-            &Point3::new(2.0, 2.0, 2.0),
-            &Point3::new(0.0, 0.0, 0.0),
-            &Vector3::new(0.0, 0.0, 1.0),
-        );
-
+    fn update_uniform_buffer(&mut self, image_index: usize, scene: &Scene) -> Result<(), Box<dyn Error>> {
+        
+        let rotation_matrix: Matrix4<f32> = Matrix4::from(scene.camera_data.rotation.conjugate());
+        let translation_matrix = Matrix4::new_translation(&scene.camera_data.position);
+        let view =rotation_matrix* translation_matrix  ;
+        
         #[rustfmt::skip]
         let correction = Matrix4::new(
             1.0,  0.0,       0.0, 0.0,
