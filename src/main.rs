@@ -13,22 +13,31 @@ use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
+use rand::{random, random_range};
 use crate::camera_movements::{get_camera_movement, MovementFlags};
 use crate::renderer::{CameraData, DirectionalLight, Material, Scene};
 use crate::renderer::HelloRenderer;
 
-const ENTITIES_TO_SPAWN: u32 = 5;
+const ENTITIES_TO_SPAWN: u32 = 10;
 const LIGHT_POS: Vector3<f32> = Vector3::new(0.0, 20.0, 10.0 );
 
 fn create_entities(world: &mut World) {
     // Create Frogs
     for i in 0..ENTITIES_TO_SPAWN {
-        let new_entity = world.spawn();
-        world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -2.0, 0.0, 0.0)});
-        world.add_component_to_entity(new_entity, Rotation { 0: UnitQuaternion::identity() });
-        world.add_component_to_entity(new_entity, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
-        world.add_component_to_entity(new_entity, MeshData {mesh_idx: 0, material_idx: 0});
-        world.add_component_to_entity(new_entity, AngularVelocity { velocity: Vector3::new(0.0, 0.0, 90.0_f32.to_radians())});
+        for j in 0..ENTITIES_TO_SPAWN {
+            let new_entity = world.spawn();
+            world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -2.0, j as f32 * -2.0, 0.0)});
+            world.add_component_to_entity(new_entity, Rotation { 0: UnitQuaternion::identity() });
+            world.add_component_to_entity(new_entity, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
+            world.add_component_to_entity(new_entity, MeshData {mesh_idx: 0, material_idx: 0});
+            let x_angular = random_range(-1.0..1.0);
+            let y_angular = random_range(-1.0..1.0);
+            let z_angular = random_range(-1.0..1.0);
+            let angular_speed = random_range(45.0..90.0);
+            
+            world.add_component_to_entity(new_entity, AngularVelocity { velocity: Vector3::new(x_angular, y_angular, z_angular).normalize(), speed: angular_speed});
+        }
+        
     }
     
     // Create Light
@@ -76,7 +85,7 @@ fn rotate_objects(world: &World, delta_time: f32) {
     });
 
     for (rotation, angular_velocity) in iter {
-        rotation.0 = rotation.0.append_axisangle_linearized(&(angular_velocity.velocity * delta_time));
+        rotation.0 = rotation.0.append_axisangle_linearized(&(angular_velocity.velocity * delta_time * angular_velocity.speed.to_radians()));
     }
 }
 
@@ -92,9 +101,9 @@ fn create_render_scene(world: &World) -> Scene {
     let iter = zip.filter_map(|(p, r, s, m)| {
         Some((p.as_mut()?, r.as_mut()?, s.as_mut()?, m.as_mut()?))
     });
-    for (position, rotation,_, mesh_renderer) in iter {
+    for (position, rotation, scale, mesh_renderer) in iter {
         let mut matrix = Matrix4::identity().append_translation(&position.0);
-        matrix *= Matrix4::from(rotation.0) * Matrix4::new_scaling(1.0);
+        matrix *= Matrix4::from(rotation.0) * Matrix4::new_nonuniform_scaling(&scale.0) ;
 
         render_scene.transforms.push(matrix);
         render_scene.model_idxs.push(mesh_renderer.mesh_idx);
@@ -371,7 +380,8 @@ struct MeshData {
 }
 
 struct AngularVelocity{
-    velocity: Vector3<f32>
+    velocity: Vector3<f32>,
+    speed: f32,
 }
 
 struct Camera;
