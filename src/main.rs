@@ -1,17 +1,20 @@
 mod ecs;
 mod transform;
 mod renderer;
+mod camera_movements;
 
 use std::time::Instant;
-use nalgebra::{Matrix4, UnitQuaternion, Vector3, Vector4};
+use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::multizip;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, RawKeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowId};
-use crate::renderer::{Material, Scene};
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::{CursorGrabMode, Window, WindowId};
+use crate::camera_movements::{get_camera_movement, MovementFlags};
+use crate::renderer::{CameraData, Material, Scene};
 use crate::renderer::HelloRenderer;
 
 const ENTITIES_TO_SPAWN: u32 = 20;
@@ -53,7 +56,7 @@ fn rotate_objects(world: &World, delta_time: f32) {
     });
 }
 
-fn create_render_scene(world: &World) -> Scene {
+fn create_render_scene(world: &World, camera_data: CameraData) -> Scene {
     let mut render_scene = Scene::default();
     let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
     let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
@@ -73,10 +76,37 @@ fn create_render_scene(world: &World) -> Scene {
         render_scene.material_idxs.push(mesh_renderer.material_idx);
         
     }
+    render_scene.camera_data = camera_data;
     
     render_scene
 }
 
+fn create_camera() -> CameraData {
+    
+    let rotation =
+        UnitQuaternion::from_axis_angle(&Vector3::x_axis(), 125.0_f32.to_radians())
+            *   UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 180.0_f32.to_radians())
+        ;
+    let position = Vector3::new(0.0, -5.0 ,-10.0);
+    CameraData { position, rotation }
+}
+
+fn get_new_camera_transform(delta_time: f32, camera_data: CameraData, mouse_delta: (f64, f64), movement_flags: MovementFlags) -> CameraData{
+    let rotation_speed = 0.1;
+    let cam_speed = 3.0;
+    let new_rotation = 
+        UnitQuaternion::from_axis_angle(&Vector3::z_axis(), (-mouse_delta.0 as f32 * rotation_speed).to_radians())
+        * camera_data.rotation
+        * UnitQuaternion::from_axis_angle(&Vector3::x_axis(), (-mouse_delta.1 as f32 * rotation_speed).to_radians());
+
+    let mut movement_vector = get_camera_movement(movement_flags);
+    movement_vector = new_rotation.transform_vector(&movement_vector);
+    let new_position = camera_data.position + movement_vector * delta_time * cam_speed;
+    CameraData{
+        rotation: new_rotation,
+        position: new_position
+    }
+}
 
 fn main() -> anyhow::Result<()>{
     let mut world = World::new();
@@ -105,6 +135,11 @@ struct App {
     ecs_world: World,
     time: Instant,
     last_elapsed_time: f32,
+    camera_data: CameraData,
+    mouse_delta: (f64, f64),
+    camera_movement_flag: MovementFlags,
+    is_focused: bool,
+    can_focus: bool,
 }
 
 impl App {
@@ -117,6 +152,11 @@ impl App {
             ecs_world,
             time: Instant::now(),
             last_elapsed_time: 0.0,
+            camera_data: CameraData::default(),
+            mouse_delta: (0.0, 0.0),
+            camera_movement_flag: MovementFlags::empty(),
+            is_focused: false,
+            can_focus: false,
         }
     }
 }
@@ -127,6 +167,10 @@ impl ApplicationHandler for App {
             .with_title("My first ECS App")
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
         let window = event_loop.create_window(window_attributes).unwrap();
+        window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
+        window.set_cursor_visible(false);
+        self.is_focused = true;
+        self.can_focus = false;
         let mut renderer = HelloRenderer::new(&window).unwrap();
         
         let texture_paths : Vec<&str> = vec!["resources/T_Yoyo_Albedo.png"];
@@ -137,7 +181,7 @@ impl ApplicationHandler for App {
         renderer.load_material_resources(materials, texture_paths).unwrap();
         let correction = nalgebra::Matrix4::new_rotation(Vector3::new(90.0_f32.to_radians(), 0.0, 0.0));
         renderer.load_model_from_path("resources/yoyo.obj", correction).unwrap();
-        
+        self.camera_data = create_camera();
         
         self.window_id = Some(window.id());
         self.window = Some(window);
@@ -180,14 +224,46 @@ impl ApplicationHandler for App {
                 let elapsed_time = self.time.elapsed().as_secs_f32();
                 let delta_time = elapsed_time - self.last_elapsed_time;
                 rotate_objects(&self.ecs_world, delta_time);
-                let render_scene = create_render_scene(&self.ecs_world);
+                let render_scene = create_render_scene(&self.ecs_world, self.camera_data);
+                self.camera_data = get_new_camera_transform(
+                    delta_time, 
+                    self.camera_data, 
+                    self.mouse_delta, 
+                    self.camera_movement_flag);
+                
                 renderer.render(window, render_scene).unwrap();
                 self.last_elapsed_time = elapsed_time;
+                self.mouse_delta = (0.0, 0.0);
             },
             WindowEvent::Resized(size) => {
                 renderer.recreate_swapchain(window).unwrap();
                 
             },
+            WindowEvent::MouseInput {state, button, ..} => {
+                if state  == ElementState::Pressed && button == MouseButton::Left && !self.is_focused && self.can_focus {
+                    window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
+                    window.set_cursor_visible(false);
+                    self.is_focused = true;
+                }
+            }
+            WindowEvent::CursorEntered {..} => {
+                self.can_focus = true;
+            }
+            WindowEvent::CursorLeft {..} => {
+                self.can_focus = false;
+            }
+            WindowEvent::KeyboardInput {event, ..} => {
+                if event.state == ElementState::Pressed && self.is_focused { 
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::Escape) => {
+                            window.set_cursor_grab(CursorGrabMode::None).unwrap();
+                            window.set_cursor_visible(true);
+                            self.is_focused = false;
+                        },
+                        _ => {}
+                    }
+                }
+            }
             _ => (),
         }
     }
@@ -197,6 +273,41 @@ impl ApplicationHandler for App {
             window.request_redraw();
         }
     }
+
+    fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+        match event {
+            DeviceEvent::MouseMotion { delta} => {
+                if self.is_focused { 
+                    self.mouse_delta = delta;
+                }
+                //let (x, y) = delta;
+                //println!("Mouse Motion x: {x}, y: {y}")
+            }
+            DeviceEvent::Key(event) => {
+                if event.state == ElementState::Pressed && self.is_focused {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::KeyW) => self.camera_movement_flag.insert(MovementFlags::FORWARD),
+                        PhysicalKey::Code(KeyCode::KeyS) => self.camera_movement_flag.insert(MovementFlags::BACKWARD),
+                        PhysicalKey::Code(KeyCode::KeyA) => self.camera_movement_flag.insert(MovementFlags::LEFT),
+                        PhysicalKey::Code(KeyCode::KeyD) => self.camera_movement_flag.insert(MovementFlags::RIGHT),
+                        
+                        _ => { }
+                    }
+                }
+                else if event.state == ElementState::Released && self.is_focused {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::KeyW) => self.camera_movement_flag.remove(MovementFlags::FORWARD),
+                        PhysicalKey::Code(KeyCode::KeyS) => self.camera_movement_flag.remove(MovementFlags::BACKWARD),
+                        PhysicalKey::Code(KeyCode::KeyA) => self.camera_movement_flag.remove(MovementFlags::LEFT),
+                        PhysicalKey::Code(KeyCode::KeyD) => self.camera_movement_flag.remove(MovementFlags::RIGHT),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    
 }
 
 #[derive(Debug)]
