@@ -18,7 +18,7 @@ use crate::camera_movements::{get_camera_movement, MovementFlags};
 use crate::renderer::{CameraData, DirectionalLight, Material, Scene};
 use crate::renderer::HelloRenderer;
 
-const ENTITIES_TO_SPAWN: u32 = 10;
+const ENTITIES_TO_SPAWN: u32 = 25;
 const LIGHT_POS: Vector3<f32> = Vector3::new(0.0, 20.0, 10.0 );
 
 fn create_entities(world: &mut World) {
@@ -338,7 +338,7 @@ impl ApplicationHandler for App {
         match event {
             DeviceEvent::MouseMotion { delta} => {
                 if self.is_focused { 
-                    self.mouse_delta = delta;
+                    self.mouse_delta = (self.mouse_delta.0 +delta.0, self.mouse_delta.1 +delta.1);
                 }
             }
             DeviceEvent::Key(event) => {

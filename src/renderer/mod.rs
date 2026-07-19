@@ -372,22 +372,20 @@ impl HelloRenderer {
         let rotation_matrix: Matrix4<f32> = Matrix4::from(scene.camera_data.rotation.conjugate());
         let translation_matrix = Matrix4::new_translation(&scene.camera_data.position);
         let view =rotation_matrix* translation_matrix  ;
-        
-        #[rustfmt::skip]
-        let correction = Matrix4::new(
+
+        let correction : Matrix4<f32> = Matrix4::new(
             1.0,  0.0,       0.0, 0.0,
             0.0, -1.0,       0.0, 0.0,
-            0.0,  0.0, 1.0 / 2.0, 0.0,
-            0.0,  0.0, 1.0 / 2.0, 1.0,
+            0.0,  0.0, 1.0, 0.0,
+            0.0,  0.0, 0.0, 1.0,
         );
         
         let proj = correction * nalgebra::Perspective3::new(
             self.swapchain.extent.width as f32 / self.swapchain.extent.height as f32,
-            3.14 / 4.0,
+            60.0_f32.to_radians(),
             0.1,
-            200.0,
-        ).to_homogeneous();
-
+            1000.0,
+        ).into_inner();
 
 
         let ubo = UniformBufferObject 
