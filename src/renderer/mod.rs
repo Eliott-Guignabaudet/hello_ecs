@@ -48,7 +48,7 @@ use crate::renderer::texture::Texture;
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
 
 pub use crate::renderer::material::{Material};
-pub use crate::renderer::scene::{Scene, CameraData};
+pub use crate::renderer::scene::{Scene, CameraData, DirectionalLight};
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 #[derive(Debug)]
@@ -390,7 +390,13 @@ impl HelloRenderer {
 
 
 
-        let ubo = UniformBufferObject { view, proj };
+        let ubo = UniformBufferObject 
+        { 
+            view, 
+            proj, 
+            directional_light_pos: scene.directional_light.position.to_homogeneous(), 
+            cam_pos: scene.camera_data.position.to_homogeneous(),
+             };
 
         // Copy
 
@@ -503,7 +509,7 @@ fn record_draw_command(
 
     let color_clear_value = vk::ClearValue {
         color: vk::ClearColorValue {
-            float32: [0.2, 0.2, 0.2, 1.0],
+            float32: [0.0, 0.0, 0.0, 1.0],
         },
     };
 
@@ -589,7 +595,7 @@ fn record_draw_command_for_scene(
 
     let color_clear_value = vk::ClearValue {
         color: vk::ClearColorValue {
-            float32: [0.2, 0.2, 0.2, 1.0],
+            float32: [0.0, 0.0, 0.0, 1.0],
         },
     };
 

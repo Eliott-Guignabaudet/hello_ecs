@@ -4,25 +4,25 @@ mod renderer;
 mod camera_movements;
 
 use std::time::Instant;
-use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3, Vector4};
+use nalgebra::{Matrix4, UnitQuaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::multizip;
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, RawKeyEvent, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 use crate::camera_movements::{get_camera_movement, MovementFlags};
-use crate::renderer::{CameraData, Material, Scene};
+use crate::renderer::{CameraData, DirectionalLight, Material, Scene};
 use crate::renderer::HelloRenderer;
 
-const ENTITIES_TO_SPAWN: u32 = 20;
+const ENTITIES_TO_SPAWN: u32 = 5;
 
 fn create_entities(world: &mut World) {
     for i in 0..ENTITIES_TO_SPAWN {
         let new_entity = world.spawn();
-        world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -1.0, i as f32 * -1.0, 0.0)});
+        world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -2.0, 0.0, 0.0)});
         world.add_component_to_entity(new_entity, Rotation { 0: UnitQuaternion::identity() });
         world.add_component_to_entity(new_entity, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
         world.add_component_to_entity(new_entity, MeshRenderer {mesh_idx: 0, material_idx: 0})
@@ -77,6 +77,9 @@ fn create_render_scene(world: &World, camera_data: CameraData) -> Scene {
         
     }
     render_scene.camera_data = camera_data;
+    render_scene.directional_light = DirectionalLight {
+        position: Vector3::new(0.0, 20.0, 10.0)
+    };
     
     render_scene
 }
@@ -108,24 +111,6 @@ fn get_new_camera_transform(delta_time: f32, camera_data: CameraData, mouse_delt
     }
 }
 
-fn main() -> anyhow::Result<()>{
-    let mut world = World::new();
-    create_entities(&mut world);
-    print_transforms(&world);
-
-    let event_loop = EventLoop::new()?;
-    let mut app = App::new(world);
-
-    event_loop.run_app(&mut app)?;
-
-
-
-    println!("Hello, ecs!");
-
-    println!("Hello World");
-
-    Ok(())
-}
 
 struct App {
     idx: usize,
@@ -179,7 +164,7 @@ impl ApplicationHandler for App {
                Material { base_color : Vector4::new(1.0, 1.0, 1.0, 1.0) , texture_index: Some(0)}
         ];
         renderer.load_material_resources(materials, texture_paths).unwrap();
-        let correction = nalgebra::Matrix4::new_rotation(Vector3::new(90.0_f32.to_radians(), 0.0, 0.0));
+        let correction = Matrix4::new_rotation(Vector3::new(90.0_f32.to_radians(), 0.0, 0.0));
         renderer.load_model_from_path("resources/yoyo.obj", correction).unwrap();
         self.camera_data = create_camera();
         
@@ -235,7 +220,7 @@ impl ApplicationHandler for App {
                 self.last_elapsed_time = elapsed_time;
                 self.mouse_delta = (0.0, 0.0);
             },
-            WindowEvent::Resized(size) => {
+            WindowEvent::Resized(_) => {
                 renderer.recreate_swapchain(window).unwrap();
                 
             },
@@ -268,20 +253,12 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(window) = self.window.as_ref() {
-            window.request_redraw();
-        }
-    }
-
-    fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+    fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         match event {
             DeviceEvent::MouseMotion { delta} => {
                 if self.is_focused { 
                     self.mouse_delta = delta;
                 }
-                //let (x, y) = delta;
-                //println!("Mouse Motion x: {x}, y: {y}")
             }
             DeviceEvent::Key(event) => {
                 if event.state == ElementState::Pressed && self.is_focused {
@@ -290,7 +267,6 @@ impl ApplicationHandler for App {
                         PhysicalKey::Code(KeyCode::KeyS) => self.camera_movement_flag.insert(MovementFlags::BACKWARD),
                         PhysicalKey::Code(KeyCode::KeyA) => self.camera_movement_flag.insert(MovementFlags::LEFT),
                         PhysicalKey::Code(KeyCode::KeyD) => self.camera_movement_flag.insert(MovementFlags::RIGHT),
-                        
                         _ => { }
                     }
                 }
@@ -307,6 +283,12 @@ impl ApplicationHandler for App {
             _ => {}
         }
     }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
+    }
     
 }
 
@@ -316,4 +298,17 @@ struct MeshRenderer {
     material_idx: u32,
 }
 
+fn main() -> anyhow::Result<()>{
+    println!("Hello, ecs!");
+    let mut world = World::new();
+    create_entities(&mut world);
+    print_transforms(&world);
+
+    let event_loop = EventLoop::new()?;
+    let mut app = App::new(world);
+
+    event_loop.run_app(&mut app)?;
+    
+    Ok(())
+}
 

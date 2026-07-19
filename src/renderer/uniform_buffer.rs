@@ -1,6 +1,6 @@
 use std::error::Error;
 use ash::{vk, Device, Instance};
-use nalgebra::Matrix4;
+use nalgebra::{Matrix4,  Vector4};
 use crate::renderer::buffer::create_buffer;
 
 #[repr(C)]
@@ -8,6 +8,8 @@ use crate::renderer::buffer::create_buffer;
 pub struct UniformBufferObject {
     pub view: Matrix4<f32>,
     pub proj: Matrix4<f32>,
+    pub directional_light_pos: Vector4<f32>,
+    pub cam_pos: Vector4<f32>,
 }
 
 pub struct UniformBuffer {
