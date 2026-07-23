@@ -10,7 +10,6 @@ use ash::Entry;
 use ash::ext::debug_utils;
 use raw_window_handle::HasDisplayHandle;
 
-
 const VALIDATION_LAYER: &CStr = c"VK_LAYER_KHRONOS_validation";
 
 pub struct RenderInstance {
@@ -25,7 +24,11 @@ impl RenderInstance {
         let entry = Entry::linked();
         let application_name = c"My App";
         let engine_name = c"Hello ECS";
-        let layer_names = [VALIDATION_LAYER];
+        let mut layer_names : &[&CStr] = &[];
+        #[cfg(debug_assertions)]{
+            layer_names  = &[VALIDATION_LAYER];
+        }
+        
         let layers_names_raw: Vec<*const c_char> = layer_names
             .iter()
             .map(|raw_name| raw_name.as_ptr())
@@ -72,7 +75,8 @@ impl RenderInstance {
             .message_severity(
                 vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
                     | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-                    | vk::DebugUtilsMessageSeverityFlagsEXT::INFO,
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
+                ,
             )
             .message_type(
                 vk::DebugUtilsMessageTypeFlagsEXT::GENERAL

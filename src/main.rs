@@ -22,20 +22,23 @@ const ENTITIES_TO_SPAWN: u32 = 336;
 const LIGHT_POS: Vector3<f32> = Vector3::new(0.0, 20.0, 10.0 );
 
 fn create_entities(world: &mut World) {
+    
     // Create Frogs
+    let space_frogs = 2.0;
     for i in 0..ENTITIES_TO_SPAWN {
         for j in 0..ENTITIES_TO_SPAWN {
             let new_entity = world.spawn();
-            world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -2.0, j as f32 * -2.0, 0.0)});
+            world.add_component_to_entity(new_entity, Position { 0: Vector3::zeros() + Vector3::new(i as f32 * -space_frogs , j as f32 * -space_frogs, 0.0) });
             world.add_component_to_entity(new_entity, Rotation { 0: UnitQuaternion::identity() });
             world.add_component_to_entity(new_entity, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
-            world.add_component_to_entity(new_entity, MeshData {mesh_idx: 0, material_idx: 0});
+            world.add_component_to_entity(new_entity, MeshData { mesh_idx: 0, material_idx: 0 });
             let x_angular = random_range(-1.0..1.0);
             let y_angular = random_range(-1.0..1.0);
             let z_angular = random_range(-1.0..1.0);
             let angular_speed = random_range(45.0..90.0);
-            
+
             world.add_component_to_entity(new_entity, AngularVelocity { velocity: Vector3::new(x_angular, y_angular, z_angular).normalize(), speed: angular_speed});
+            
         }
         
     }
@@ -153,7 +156,7 @@ fn rotate_cameras(world: &World){
 }
 
 fn move_cameras(world: &World, delta_time: f32) {
-    let cam_speed = 3.0;
+    let cam_speed = 10.0;
     let mut camera_movements = world.borrow_component_vec_mut::<CameraMovementInput>().unwrap();
     let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
     let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
