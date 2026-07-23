@@ -13,12 +13,12 @@ use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
-use rand::{random, random_range};
+use rand::{random_range};
 use crate::camera_movements::{get_camera_movement, MovementFlags};
 use crate::renderer::{CameraData, DirectionalLight, Material, Scene};
 use crate::renderer::HelloRenderer;
 
-const ENTITIES_TO_SPAWN: u32 = 25;
+const ENTITIES_TO_SPAWN: u32 = 336;
 const LIGHT_POS: Vector3<f32> = Vector3::new(0.0, 20.0, 10.0 );
 
 fn create_entities(world: &mut World) {
@@ -45,7 +45,7 @@ fn create_entities(world: &mut World) {
     world.add_component_to_entity(light_object, Position { 0: LIGHT_POS });
     world.add_component_to_entity(light_object, Rotation { 0: UnitQuaternion::identity() });
     world.add_component_to_entity(light_object, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
-    world.add_component_to_entity(light_object, MeshData {mesh_idx: 1, material_idx: 1});
+    //world.add_component_to_entity(light_object, MeshData {mesh_idx: 1, material_idx: 1});
     
     // Create Camera
     let camera = world.spawn();
@@ -57,49 +57,31 @@ fn create_entities(world: &mut World) {
     world.add_component_to_entity(camera, CameraRotationInput {0: (0.0, 0.0)});
     
 }
-fn print_transforms(world : &World){
-    let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
-    let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
-    let mut scales = world.borrow_component_vec_mut::<Scale>().unwrap();
-
-    let zip = multizip((positions.iter_mut(), rotations.iter_mut(), scales.iter_mut()));
-
-
-    let iter = zip.filter_map(|(p, r, s)| {
-        Some((p.as_mut()?, r.as_mut()?, s.as_mut()?))
-    });
-
-    for (position, rotation,scale) in iter {
-        println!("Position:  {position}");
-        println!("Rotation:  {rotation}");
-        println!("Scale:     {scale}");
-    }
-}
 
 fn rotate_objects(world: &World, delta_time: f32) {
     let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
-    let mut angular_velocity = world.borrow_component_vec_mut::<AngularVelocity>().unwrap();
-    let zip = rotations.iter_mut().zip(angular_velocity.iter_mut());
+    let angular_velocity = world.borrow_component_vec::<AngularVelocity>().unwrap();
+    let zip = rotations.iter_mut().zip(angular_velocity.iter());
     let iter = zip.filter_map(|(r, av)| {
-        Some((r.as_mut()?, av.as_mut()?))
+        Some((r.as_mut()?, av.as_ref()?))
     });
 
     for (rotation, angular_velocity) in iter {
-        rotation.0 = rotation.0.append_axisangle_linearized(&(angular_velocity.velocity * delta_time * angular_velocity.speed.to_radians()));
+        rotation.0 *= UnitQuaternion::new((angular_velocity.velocity * delta_time * angular_velocity.speed.to_radians()));
     }
 }
 
 fn create_render_scene(world: &World) -> Scene {
     let mut render_scene = Scene::default();
-    let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
-    let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
-    let mut scales = world.borrow_component_vec_mut::<Scale>().unwrap();
-    let mut meh_renderers = world.borrow_component_vec_mut::<MeshData>().unwrap();
-    let mut cameras = world.borrow_component_vec_mut::<Camera>().unwrap();
+    let positions = world.borrow_component_vec::<Position>().unwrap();
+    let rotations = world.borrow_component_vec::<Rotation>().unwrap();
+    let scales = world.borrow_component_vec::<Scale>().unwrap();
+    let meh_renderers = world.borrow_component_vec::<MeshData>().unwrap();
+    let cameras = world.borrow_component_vec::<Camera>().unwrap();
 
-    let zip = multizip((positions.iter_mut(), rotations.iter_mut(), scales.iter_mut(), meh_renderers.iter_mut()));
+    let zip = multizip((positions.iter(), rotations.iter(), scales.iter(), meh_renderers.iter()));
     let iter = zip.filter_map(|(p, r, s, m)| {
-        Some((p.as_mut()?, r.as_mut()?, s.as_mut()?, m.as_mut()?))
+        Some((p.as_ref()?, r.as_ref()?, s.as_ref()?, m.as_ref()?))
     });
     for (position, rotation, scale, mesh_renderer) in iter {
         let mut matrix = Matrix4::identity().append_translation(&position.0);
@@ -110,9 +92,9 @@ fn create_render_scene(world: &World) -> Scene {
         render_scene.material_idxs.push(mesh_renderer.material_idx);
         
     }
-    let zip = multizip((positions.iter_mut(), rotations.iter_mut(), cameras.iter_mut()));
+    let zip = multizip((positions.iter(), rotations.iter(), cameras.iter()));
     let iter = zip.filter_map(|(p, r, c)| {
-        Some((p.as_mut()?, r.as_mut()?, c.as_mut()?))
+        Some((p.as_ref()?, r.as_ref()?, c.as_ref()?))
     });
     for (position, rotation, _) in iter {
         render_scene.camera_data = CameraData{ position: position.0, rotation: rotation.0};
@@ -296,7 +278,6 @@ impl ApplicationHandler for App {
                 
                 // draw systems
                 let render_scene = create_render_scene(&self.ecs_world);
-                
                 renderer.render(window, render_scene).unwrap();
                 self.last_elapsed_time = elapsed_time;
                 self.mouse_delta = (0.0, 0.0);
@@ -394,8 +375,6 @@ fn main() -> anyhow::Result<()>{
     println!("Hello, ecs!");
     let mut world = World::new();
     create_entities(&mut world);
-    print_transforms(&world);
-
     let event_loop = EventLoop::new()?;
     let mut app = App::new(world);
 

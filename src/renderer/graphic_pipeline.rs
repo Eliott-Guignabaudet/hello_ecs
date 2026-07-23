@@ -19,8 +19,8 @@ impl GraphicsPipeline {
         device: Arc<Device>,
         swapchain_extent: vk::Extent2D,
         render_pass: vk::RenderPass,
-        vertex_binding_description: vk::VertexInputBindingDescription,
-        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 4],
+        vertex_binding_descriptions: [vk::VertexInputBindingDescription; 2],
+        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 8],
         msaa_samples: vk::SampleCountFlags,
         swapchain_image_count: u32,
     ) -> Result<Self, Box<dyn Error>> {
@@ -34,7 +34,7 @@ impl GraphicsPipeline {
             swapchain_extent,
             render_pass,
             &[descriptor_set_layout, descriptor_set_layout_material],
-            vertex_binding_description,
+            vertex_binding_descriptions,
             vertex_attribute_descriptions,
             msaa_samples,
         )?;
@@ -96,8 +96,8 @@ impl GraphicsPipeline {
         swapchain_extent: vk::Extent2D,
         render_pass: vk::RenderPass,
         set_layouts: &[vk::DescriptorSetLayout],
-        vertex_binding_description: vk::VertexInputBindingDescription,
-        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 4],
+        vertex_binding_descriptions: [vk::VertexInputBindingDescription; 2],
+        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 8],
         msaa_samples: vk::SampleCountFlags,
     ) -> Result<(vk::Pipeline, vk::PipelineLayout), Box<dyn Error>> {
         let vert = include_bytes!("../../shader/vert.spv");
@@ -116,9 +116,8 @@ impl GraphicsPipeline {
             .module(frag_shader_module)
             .name(c"main");
 
-        let vertex_binding_descriptions = &[vertex_binding_description];
         let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::default()
-            .vertex_binding_descriptions(vertex_binding_descriptions)
+            .vertex_binding_descriptions(&vertex_binding_descriptions)
             .vertex_attribute_descriptions(&vertex_attribute_descriptions);
 
 
@@ -270,8 +269,8 @@ impl GraphicsPipeline {
         &mut self,
         swapchain_extent: vk::Extent2D,
         render_pass: vk::RenderPass,
-        vertex_binding_description: vk::VertexInputBindingDescription,
-        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 4],
+        vertex_binding_description: [vk::VertexInputBindingDescription; 2],
+        vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 8],
         msaa_samples: vk::SampleCountFlags,
     ) -> Result<(), Box<dyn Error>> {
         unsafe { self.device.destroy_pipeline(self.pipeline, None) }

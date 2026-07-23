@@ -1,4 +1,4 @@
-use std::cell::{RefCell, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 /// code from article:
 /// https://medium.com/@jordangrilly/building-an-ecs-2-entity-management-ids-generations-and-recycling-99e289633dfb 
 
@@ -115,6 +115,20 @@ impl World {
         new_component_vec[entity.id as usize] = Some(component);
         self.component_vecs
             .push(Box::new(RefCell::new(new_component_vec)));
+    }
+
+    pub fn borrow_component_vec<ComponentType: 'static>(
+        &self,
+    ) -> Option<Ref<Vec<Option<ComponentType>>>> {
+        for component_vec in self.component_vecs.iter() {
+            if let Some(component_vec) = component_vec
+                .as_any()
+                .downcast_ref::<RefCell<Vec<Option<ComponentType>>>>()
+            {
+                return Some(component_vec.borrow());
+            }
+        }
+        None
     }
 
 
