@@ -48,7 +48,7 @@ fn create_entities(world: &mut World) {
     world.add_component_to_entity(light_object, Position { 0: LIGHT_POS });
     world.add_component_to_entity(light_object, Rotation { 0: UnitQuaternion::identity() });
     world.add_component_to_entity(light_object, Scale { 0: Vector3::new(1.0, 1.0, 1.0) });
-    //world.add_component_to_entity(light_object, MeshData {mesh_idx: 1, material_idx: 1});
+    world.add_component_to_entity(light_object, MeshData {mesh_idx: 1, material_idx: 1});
     
     // Create Camera
     let camera = world.spawn();

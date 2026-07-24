@@ -41,7 +41,6 @@ use render_pass::RenderPass;
 use graphic_pipeline::GraphicsPipeline;
 use model::Model;
 use vertex::Vertex;
-use crate::renderer::buffer::create_buffer;
 use crate::renderer::descriptor::{create_descriptor_set, update_descriptor_image};
 use crate::renderer::frame_resources::RenderFrameResource;
 use crate::renderer::sync::FrameSync;
@@ -88,7 +87,6 @@ pub struct HelloRenderer {
     materials_descriptor_pool: vk::DescriptorPool,
     materials_descriptor_sets: Vec<vk::DescriptorSet>,
     materials_uniform_buffers: Vec<UniformBuffer>,
-    instances_buffer: (vk::Buffer, vk::DeviceMemory, u64),
     
     // resources
     materials: Vec<Material>,
@@ -179,7 +177,6 @@ impl HelloRenderer {
         let materials_descriptor_pool = vk::DescriptorPool::null();
         let materials_uniform_buffers = vec![];
         let materials_descriptor_sets = vec![];
-        let instances_buffer = (vk::Buffer::null(), vk::DeviceMemory::null(), 0);
         
         Ok(Self { 
             instance, 
@@ -196,7 +193,6 @@ impl HelloRenderer {
             materials_descriptor_pool,
             materials_uniform_buffers,
             materials_descriptor_sets,
-            instances_buffer,
             
             frame: 0,
             resized: false,
@@ -419,17 +415,16 @@ impl HelloRenderer {
     
     fn update_command_buffer(&mut self, image_index: usize, scene: Scene) -> Result<(), Box<dyn Error>> {
         self.frame_resources[image_index].graphics_command_pool.reset(&self.device.device)?;
-        self.instances_buffer = record_draw_command_for_scene(
+        record_draw_command_for_scene(
             &self.instance,
             &self.device,
             &self.swapchain,
             &self.render_pass,
             &self.graphics_pipeline,
-            &self.frame_resources[image_index],
+            &mut self.frame_resources[image_index],
             &scene,
             &self.models,
             &self.materials_descriptor_sets,
-            self.instances_buffer,
         )?;
         
         Ok(())
@@ -499,20 +494,52 @@ fn record_draw_command_for_scene(
     swapchain: &RenderSwapchain,
     render_pass: &RenderPass,
     render_pipeline: &GraphicsPipeline,
-    frame_resources: &RenderFrameResource,
+    frame_resources: &mut RenderFrameResource,
     scene: &Scene,
     models: &Vec<Model>,
     material_descriptors: &Vec<vk::DescriptorSet>,
-    instances_buffer:  (vk::Buffer, vk::DeviceMemory, u64),
-) -> Result<(vk::Buffer, vk::DeviceMemory, u64), Box<dyn Error>> {
-    let mut instances_buffer_mut = instances_buffer;
+) -> Result<(), Box<dyn Error>> {
     
-    let mut datas : Vec<Vec<(Matrix4<f32>)>> = vec![];
+    // We create a vector of vector per material wich is a vector per model for instancing
+    let mut datas : Vec<Vec<Vec<Matrix4<f32>>>> = vec![];
     datas.resize(material_descriptors.len(), vec![]);
+    datas.iter_mut().for_each(|d| { d.resize(models.len(), vec![])});
+    
     let zip = multizip((scene.transforms.iter(), scene.model_idxs.iter(), scene.material_idxs.iter()));
     zip.for_each(|(t, mo, ma)| {
-       datas[*ma as usize].push((*t))
+       datas[*ma as usize][*mo as usize].push(*t)
     });
+
+
+    let transforms_size = ((scene.transforms.len() as u32) * (size_of::<Matrix4<f32>>() as u32)) as u64;
+    let (instances_buffer, instances_buffer_memory) = 
+        frame_resources.get_or_create_instances_data_buffer(
+            &instance.instance, 
+            device.physical_device, 
+            transforms_size)?;
+    let mut instances_offsets : Vec<Vec<vk::DeviceSize>> = vec![];
+    instances_offsets.resize(material_descriptors.len(), vec![]);
+    instances_offsets.iter_mut().for_each(|d| { d.resize(models.len(), 0)});
+    
+    let mut last_offset: vk::DeviceSize = 0;
+    
+    datas.iter().enumerate().for_each(|(i, data_pipeline)| {
+        data_pipeline.iter().enumerate().for_each(|(j, data_model)| {
+            instances_offsets[i][j] = last_offset;
+            
+            let data_model_size = ((data_model.len() as u32) * (size_of::<Matrix4<f32>>() as u32)) as u64;
+            if data_model_size > 0 { 
+                update_instances_buffer(
+                    device,
+                    (instances_buffer, instances_buffer_memory, transforms_size),
+                    last_offset,
+                    data_model
+                ).unwrap();
+                last_offset += data_model_size;
+            }
+        })
+    });
+    
     
     let info = vk::CommandBufferBeginInfo::default();
     let command_buffer = frame_resources.graphics_command_pool.command_buffer;
@@ -553,10 +580,7 @@ fn record_draw_command_for_scene(
 
     unsafe { device.device.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, render_pipeline.pipeline); }
     
-    for (i, data) in datas.iter().filter_map(|v| {match v.len() > 0 {
-        true => {Some(v)}
-        false => None
-    }}).enumerate() {
+    for (i, data_pipeline) in datas.iter().enumerate() {
         unsafe {
             device.device.cmd_bind_descriptor_sets(
                 command_buffer,
@@ -569,16 +593,13 @@ fn record_draw_command_for_scene(
         }
 
         unsafe {
-            instances_buffer_mut = update_instances_buffer(
-                instance,
-                device,
-                instances_buffer_mut,
-                data,
-            )?;
-            device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[models[0].vertex_buffer], &[0]);
-            device.device.cmd_bind_vertex_buffers(command_buffer, 1, &[instances_buffer_mut.0], &[0]);
-            device.device.cmd_bind_index_buffer(command_buffer, models[0].index_buffer, 0, vk::IndexType::UINT32);
-            device.device.cmd_draw_indexed(command_buffer, models[0].index_count, data.len() as u32, 0, 0, 0);
+            data_pipeline.iter().enumerate().for_each(|(j, data_model)| {
+                device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[models[j].vertex_buffer], &[0]);
+                device.device.cmd_bind_vertex_buffers(command_buffer, 1, &[instances_buffer], &[instances_offsets[i][j]]);
+                device.device.cmd_bind_index_buffer(command_buffer, models[j].index_buffer, 0, vk::IndexType::UINT32);
+                device.device.cmd_draw_indexed(command_buffer, models[j].index_count, data_model.len() as u32, 0, 0, 0);
+            });
+
         }
     }
     
@@ -587,44 +608,28 @@ fn record_draw_command_for_scene(
     unsafe { device.device.end_command_buffer(command_buffer)?; }
 
 
-    Ok(instances_buffer_mut)
+    Ok(())
 }
 
 
 fn update_instances_buffer(
-    instance: &RenderInstance,
     device: &RenderDevice,
-    instances_buffer:  (vk::Buffer, vk::DeviceMemory, u64),
+    instances_buffer:  (vk::Buffer, vk::DeviceMemory, vk::DeviceSize),
+    offset: vk::DeviceSize,
     transforms: &Vec<Matrix4<f32>>
-) -> Result<(vk::Buffer, vk::DeviceMemory, u64), Box<dyn Error>> {
-    let matrix_size = size_of::<Matrix4<f32>>() as u32;
-    let instances_data_size = (transforms.len() as u32) * matrix_size;
-    let mut new_buffer_data = instances_buffer;
-    if instances_buffer.2 < instances_data_size as u64 {
-        //unsafe { device.device.destroy_buffer(instances_buffer.0, None) }
-        // unsafe { device.device.free_memory(instances_buffer.1, None) }
-        let (new_buffer, new_memory) = create_buffer(
-            &instance.instance,
-            &device.device,
-            device.physical_device,
-            instances_data_size as u64,
-            vk::BufferUsageFlags::VERTEX_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE
-        )?;
-        new_buffer_data = (new_buffer, new_memory, instances_data_size as u64);
-    }
+) -> Result<(), Box<dyn Error>> {
 
     let memory = unsafe { device.device.map_memory(
-        new_buffer_data.1, 
-        0, 
-        instances_data_size as u64, 
+        instances_buffer.1,
+        offset,
+        instances_buffer.2, 
         vk::MemoryMapFlags::empty() 
     )? };
     
     unsafe { copy_nonoverlapping(transforms.as_ptr(), memory.cast(), transforms.len()) };
     
-    unsafe { device.device.unmap_memory(new_buffer_data.1) };
+    unsafe { device.device.unmap_memory(instances_buffer.1) };
     
     
-    Ok(new_buffer_data)
+    Ok(())
 }

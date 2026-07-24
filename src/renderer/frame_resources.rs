@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 use ash::{vk, Device, Instance};
+use crate::renderer::buffer::create_buffer;
 use crate::renderer::command_pool::CommandPool;
 use crate::renderer::descriptor::{create_descriptor_set};
 use crate::renderer::uniform_buffer::{UniformBuffer, UniformBufferObject};
@@ -12,6 +13,10 @@ pub struct RenderFrameResource {
     pub graphics_command_pool: CommandPool,
     pub uniform_buffer: UniformBuffer,
     pub descriptor_set: vk::DescriptorSet,
+    
+    instances_data_buffer: vk::Buffer,
+    instances_data_buffer_memory: vk::DeviceMemory,
+    instances_data_buffer_size: vk::DeviceSize,
     
     device: Arc<Device>
 }
@@ -69,6 +74,10 @@ impl RenderFrameResource {
             uniform_buffer,
             render_finished_semaphore,
             device,
+
+            instances_data_buffer: vk::Buffer::null(),
+            instances_data_buffer_memory: vk::DeviceMemory::null(),
+            instances_data_buffer_size: 0,
         })
     }
     
@@ -114,10 +123,43 @@ impl RenderFrameResource {
 
         Ok(())
     }
+    
+    pub fn get_or_create_instances_data_buffer(
+        &mut self,
+        instance: &Instance,
+        physical_device: vk::PhysicalDevice,
+        size: vk::DeviceSize,
+    ) -> Result<(vk::Buffer, vk::DeviceMemory), Box<dyn Error>>{
+        if self.instances_data_buffer_size + 1 < size { 
+            if self.instances_data_buffer_size > 0 {
+                unsafe { self.device.destroy_buffer(self.instances_data_buffer, None); }
+                unsafe { self.device.free_memory(self.instances_data_buffer_memory, None); }
+            }
+            
+            let (buffer, buffer_memory) = create_buffer(
+                instance,
+                &self.device,
+                physical_device,
+                size + 1,
+                vk::BufferUsageFlags::VERTEX_BUFFER,
+                vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE
+            )?;
+            self.instances_data_buffer = buffer;
+            self.instances_data_buffer_memory = buffer_memory;
+            self.instances_data_buffer_size = size + 1;
+        }
+        
+        
+        Ok((self.instances_data_buffer, self.instances_data_buffer_memory))
+    }
 }
 
 impl Drop for RenderFrameResource{
     fn drop(&mut self) {
+        if self.instances_data_buffer_size > 0 {
+            unsafe { self.device.destroy_buffer(self.instances_data_buffer, None); }
+            unsafe { self.device.free_memory(self.instances_data_buffer_memory, None); }
+        }
         unsafe { self.device.destroy_semaphore(self.render_finished_semaphore, None) }
         self.graphics_command_pool.destroy();
         unsafe { self.device.destroy_buffer(self.uniform_buffer.buffer, None) }
