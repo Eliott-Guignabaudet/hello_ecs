@@ -531,7 +531,7 @@ fn record_draw_command_for_scene(
             if data_model_size > 0 { 
                 update_instances_buffer(
                     device,
-                    (instances_buffer, instances_buffer_memory, transforms_size),
+                    (instances_buffer, instances_buffer_memory, data_model_size),
                     last_offset,
                     data_model
                 ).unwrap();
@@ -594,10 +594,12 @@ fn record_draw_command_for_scene(
 
         unsafe {
             data_pipeline.iter().enumerate().for_each(|(j, data_model)| {
-                device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[models[j].vertex_buffer], &[0]);
-                device.device.cmd_bind_vertex_buffers(command_buffer, 1, &[instances_buffer], &[instances_offsets[i][j]]);
-                device.device.cmd_bind_index_buffer(command_buffer, models[j].index_buffer, 0, vk::IndexType::UINT32);
-                device.device.cmd_draw_indexed(command_buffer, models[j].index_count, data_model.len() as u32, 0, 0, 0);
+                if data_model.len() > 0 { 
+                    device.device.cmd_bind_vertex_buffers(command_buffer, 0, &[models[j].vertex_buffer], &[0]);
+                    device.device.cmd_bind_vertex_buffers(command_buffer, 1, &[instances_buffer], &[instances_offsets[i][j]]);
+                    device.device.cmd_bind_index_buffer(command_buffer, models[j].index_buffer, 0, vk::IndexType::UINT32);
+                    device.device.cmd_draw_indexed(command_buffer, models[j].index_count, data_model.len() as u32, 0, 0, 0);
+                }
             });
 
         }
