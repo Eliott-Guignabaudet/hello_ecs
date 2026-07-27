@@ -200,6 +200,10 @@ impl HelloRenderer {
         })
     }
     
+    pub fn get_model(&self, idx: usize) -> Option<&Model> {
+        self.models.get(idx)
+    }
+    
     pub fn load_material_resources(&mut self, materials: Vec<Material>, texture_paths: Vec<&str>) -> Result<(), Box<dyn Error>>{
         self.materials = materials;
         texture_paths.iter().for_each(|p| {
@@ -386,8 +390,7 @@ impl HelloRenderer {
             0.1,
             1000.0,
         ).into_inner();
-
-
+        
         let ubo = UniformBufferObject 
         { 
             view, 

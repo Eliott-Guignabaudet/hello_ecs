@@ -3,8 +3,9 @@ mod transform;
 mod renderer;
 mod camera_movements;
 
+use std::ops::Add;
 use std::time::Instant;
-use nalgebra::{Matrix4, UnitQuaternion, Vector3, Vector4};
+use nalgebra::{Matrix4, Point3, UnitQuaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::{multizip};
@@ -74,27 +75,15 @@ fn rotate_objects(world: &World, delta_time: f32) {
     }
 }
 
-fn create_render_scene(world: &World) -> Scene {
+fn create_render_scene(world: &World, renderer: &HelloRenderer) -> Scene {
     let mut render_scene = Scene::default();
     let positions = world.borrow_component_vec::<Position>().unwrap();
     let rotations = world.borrow_component_vec::<Rotation>().unwrap();
     let scales = world.borrow_component_vec::<Scale>().unwrap();
     let meh_renderers = world.borrow_component_vec::<MeshData>().unwrap();
     let cameras = world.borrow_component_vec::<Camera>().unwrap();
-
-    let zip = multizip((positions.iter(), rotations.iter(), scales.iter(), meh_renderers.iter()));
-    let iter = zip.filter_map(|(p, r, s, m)| {
-        Some((p.as_ref()?, r.as_ref()?, s.as_ref()?, m.as_ref()?))
-    });
-    for (position, rotation, scale, mesh_renderer) in iter {
-        let mut matrix = Matrix4::identity().append_translation(&position.0);
-        matrix *= Matrix4::from(rotation.0) * Matrix4::new_nonuniform_scaling(&scale.0) ;
-
-        render_scene.transforms.push(matrix);
-        render_scene.model_idxs.push(mesh_renderer.mesh_idx);
-        render_scene.material_idxs.push(mesh_renderer.material_idx);
-        
-    }
+    
+    // Push Camera to scene
     let zip = multizip((positions.iter(), rotations.iter(), cameras.iter()));
     let iter = zip.filter_map(|(p, r, c)| {
         Some((p.as_ref()?, r.as_ref()?, c.as_ref()?))
@@ -103,6 +92,60 @@ fn create_render_scene(world: &World) -> Scene {
         render_scene.camera_data = CameraData{ position: position.0, rotation: rotation.0};
     }
     
+    // Calculate view proj matrix
+    let view = Matrix4::from(render_scene.camera_data.rotation.conjugate()) 
+        * Matrix4::new_translation(&render_scene.camera_data.position);
+    let correction : Matrix4<f32> = Matrix4::new(
+        1.0,  0.0,       0.0, 0.0,
+        0.0, -1.0,       0.0, 0.0,
+        0.0,  0.0, 1.0, 0.0,
+        0.0,  0.0, 0.0, 1.0,
+    );
+    let proj = correction * nalgebra::Perspective3::new(
+        16.0/9.0,
+        60.0_f32.to_radians(),
+        0.1,
+        1000.0,
+    ).into_inner();
+    let view_proj = proj * view;
+    let view_proj_trans = view_proj.transpose();
+    let planes : [Vector4<f32>; 6] = [
+        view_proj_trans.column(3) + view_proj_trans.column(0),
+        view_proj_trans.column(3) - view_proj_trans.column(0),
+        view_proj_trans.column(3) + view_proj_trans.column(1),
+        view_proj_trans.column(3) - view_proj_trans.column(1),
+        view_proj_trans.column(3) + view_proj_trans.column(2),
+        view_proj_trans.column(3) - view_proj_trans.column(2),
+    ];
+    
+    // Push render objects to scene
+    let zip = multizip((positions.iter(), rotations.iter(), scales.iter(), meh_renderers.iter()));
+    let iter = zip.filter_map(|(p, r, s, m)| {
+        Some((p.as_ref()?, r.as_ref()?, s.as_ref()?, m.as_ref()?))
+    });
+    for (position, rotation, scale, mesh_renderer) in iter {
+        let mut matrix = Matrix4::identity().append_translation(&position.0);
+        matrix *= Matrix4::from(rotation.0) * Matrix4::new_nonuniform_scaling(&scale.0);
+        
+        let model = renderer.get_model(mesh_renderer.mesh_idx as usize);
+        if let Some(model) = model { 
+            let base_center : Vector3<f32> =(model.min_pos + model.max_pos) / 2.0;
+            let base_half_extent = ( model.max_pos - model.min_pos)/2.0;
+            let center: Point3<f32> =  matrix.transform_point(&Point3::from(base_center));
+            // wip
+            let half_extent = matrix.fixed_view::<3, 3>(0, 0).abs() * base_half_extent;
+            let new_min = center - half_extent;
+            let new_max = center + half_extent;
+            
+            
+        } else { continue }
+
+        render_scene.transforms.push(matrix);
+        render_scene.model_idxs.push(mesh_renderer.mesh_idx);
+        render_scene.material_idxs.push(mesh_renderer.material_idx);
+        
+    }
+   
     
     render_scene.directional_light = DirectionalLight {
         position: LIGHT_POS
@@ -156,7 +199,7 @@ fn rotate_cameras(world: &World){
 }
 
 fn move_cameras(world: &World, delta_time: f32) {
-    let cam_speed = 10.0;
+    let cam_speed = 20.0;
     let mut camera_movements = world.borrow_component_vec_mut::<CameraMovementInput>().unwrap();
     let mut rotations = world.borrow_component_vec_mut::<Rotation>().unwrap();
     let mut positions = world.borrow_component_vec_mut::<Position>().unwrap();
@@ -280,7 +323,7 @@ impl ApplicationHandler for App {
                 move_cameras(&self.ecs_world, delta_time);
                 
                 // draw systems
-                let render_scene = create_render_scene(&self.ecs_world);
+                let render_scene = create_render_scene(&self.ecs_world, &renderer);
                 renderer.render(window, render_scene).unwrap();
                 self.last_elapsed_time = elapsed_time;
                 self.mouse_delta = (0.0, 0.0);
