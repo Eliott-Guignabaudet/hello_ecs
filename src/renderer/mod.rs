@@ -200,6 +200,10 @@ impl HelloRenderer {
         })
     }
     
+    pub fn get_aspect_ration(&self) -> f32 {
+        self.swapchain.extent.width as f32 / self.swapchain.extent.height as f32
+    }
+    
     pub fn get_model(&self, idx: usize) -> Option<&Model> {
         self.models.get(idx)
     }
@@ -372,32 +376,15 @@ impl HelloRenderer {
     }
     
     fn update_uniform_buffer(&mut self, image_index: usize, scene: &Scene) -> Result<(), Box<dyn Error>> {
-        
-        let rotation_matrix: Matrix4<f32> = Matrix4::from(scene.camera_data.rotation.conjugate());
-        let translation_matrix = Matrix4::new_translation(&scene.camera_data.position);
-        let view =rotation_matrix* translation_matrix  ;
 
-        let correction : Matrix4<f32> = Matrix4::new(
-            1.0,  0.0,       0.0, 0.0,
-            0.0, -1.0,       0.0, 0.0,
-            0.0,  0.0, 1.0, 0.0,
-            0.0,  0.0, 0.0, 1.0,
-        );
-        
-        let proj = correction * nalgebra::Perspective3::new(
-            self.swapchain.extent.width as f32 / self.swapchain.extent.height as f32,
-            60.0_f32.to_radians(),
-            0.1,
-            1000.0,
-        ).into_inner();
-        
         let ubo = UniformBufferObject 
         { 
-            view, 
-            proj, 
+            view: scene.view_matrix, 
+            proj: scene.proj_matrix, 
+            view_proj: scene.view_proj_matrix,
             directional_light_pos: scene.directional_light.position.to_homogeneous(), 
             cam_pos: scene.camera_data.position.to_homogeneous(),
-             };
+        };
 
         // Copy
 

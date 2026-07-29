@@ -9,6 +9,7 @@ use nalgebra::{Matrix4, Point3, UnitQuaternion, Vector3, Vector4};
 use ecs::World;
 use transform::{Position, Rotation, Scale};
 use itertools::{multizip};
+use nalgebra_glm::dot;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -102,12 +103,17 @@ fn create_render_scene(world: &World, renderer: &HelloRenderer) -> Scene {
         0.0,  0.0, 0.0, 1.0,
     );
     let proj = correction * nalgebra::Perspective3::new(
-        16.0/9.0,
+        renderer.get_aspect_ration(),
         60.0_f32.to_radians(),
         0.1,
-        1000.0,
+        400.0,
     ).into_inner();
     let view_proj = proj * view;
+    
+    render_scene.view_matrix = view;
+    render_scene.proj_matrix = proj;
+    render_scene.view_proj_matrix = view_proj;
+    
     let view_proj_trans = view_proj.transpose();
     let planes : [Vector4<f32>; 6] = [
         view_proj_trans.column(3) + view_proj_trans.column(0),
@@ -136,6 +142,20 @@ fn create_render_scene(world: &World, renderer: &HelloRenderer) -> Scene {
             let half_extent = matrix.fixed_view::<3, 3>(0, 0).abs() * base_half_extent;
             let new_min = center - half_extent;
             let new_max = center + half_extent;
+            let mut is_in_frustrum = true;
+            for plane in planes {
+                let p : Vector3<f32> = Vector3::new(
+                    if plane.x >= 0.0 {new_max.x} else { new_min.x },
+                    if plane.y >= 0.0 {new_max.y} else { new_min.y },
+                    if plane.z >= 0.0 {new_max.z} else { new_min.z },
+                );
+                if dot(&plane.xyz(), &p) + plane.w < 0.0 { 
+                    is_in_frustrum = false;
+                    break
+                }
+            }
+            
+            if !is_in_frustrum { continue }
             
             
         } else { continue }
