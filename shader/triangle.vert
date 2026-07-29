@@ -3,6 +3,7 @@
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
+    mat4 viewProj;
     vec4 lightPos;
 } ubo;
 
@@ -26,7 +27,7 @@ layout(location = 3) out vec3 fragPos;
 
 
 void main() {
-    gl_Position = ubo.proj * ubo.view * instanceTransform * vec4(inPosition, 1.0);
+    gl_Position = ubo.viewProj * instanceTransform * vec4(inPosition, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
     fragNormal = mat3(transpose(inverse(instanceTransform))) * inNormal;

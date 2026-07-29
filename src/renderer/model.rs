@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::ptr::copy_nonoverlapping;
 use std::sync::Arc;
 use ash::{vk, Device, Instance};
-use nalgebra::{Vector2, Vector3};
+use nalgebra::{min, Vector2, Vector3};
 use crate::renderer::buffer::{copy_buffer, create_buffer};
 use crate::renderer::vertex::Vertex;
 
@@ -14,6 +14,8 @@ pub struct Model {
     pub index_buffer_memory: vk::DeviceMemory,
     pub vertex_buffer: vk::Buffer,
     pub vertex_buffer_memory: vk::DeviceMemory,
+    pub min_pos: Vector3<f32>,
+    pub max_pos: Vector3<f32>,
     
     device: Arc<Device>
 }
@@ -29,7 +31,7 @@ impl Model{
         correction: nalgebra::Matrix4<f32>
     ) -> Result<Self, Box<dyn Error>>  {
         
-        let (vertices, indices) = load_model(path, correction)?;
+        let (vertices, indices, min_pos, max_pos) = load_model(path, correction)?;
         let (vertex_buffer, vertex_buffer_memory)= Self::create_vertex_buffer(
             instance,
             &device,
@@ -54,6 +56,8 @@ impl Model{
             vertex_buffer_memory,
             index_buffer,
             index_buffer_memory,
+            min_pos,
+            max_pos,
             device,
         })
     }
@@ -84,6 +88,19 @@ impl Model{
             copy_command_pool,
         )?;
         let index_count = indices.len() as u32;
+        
+        let mut min_pos = vertices[0].pos;
+        let mut max_pos = vertices[0].pos;
+        
+        vertices.iter().for_each(|v| {
+            min_pos.x =  min_pos.x.min(v.pos.x);
+            min_pos.y =  min_pos.y.min(v.pos.y);
+            min_pos.z =  min_pos.z.min(v.pos.z);
+
+            max_pos.x =  max_pos.x.max(v.pos.x);
+            max_pos.y =  max_pos.y.max(v.pos.y);
+            max_pos.z =  max_pos.z.max(v.pos.z);
+        });
 
         Ok(Self{
             index_count,
@@ -91,7 +108,9 @@ impl Model{
             vertex_buffer_memory,
             index_buffer,
             index_buffer_memory,
-            device
+            min_pos,
+            max_pos,
+            device,
         })
     }
     
@@ -209,7 +228,10 @@ impl Drop for Model {
     }
 }
 
-fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> Result<(Vec<Vertex>, Vec<u32>), Box<dyn Error>> {
+fn load_model(
+    path: &str, 
+    correction: nalgebra::Matrix4<f32>,
+) -> Result<(Vec<Vertex>, Vec<u32>, Vector3<f32>, Vector3<f32>), Box<dyn Error>> {
     let mut reader = BufReader::new(File::open(path)?);
 
     let (models, _) = tobj::load_obj_buf(
@@ -220,21 +242,37 @@ fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> Result<(Vec<Ver
 
     let mut vertices = vec![];
     let mut indices = vec![];
+    let first_index = models[0].mesh.indices[0] as usize;
+    let first_pos = correction.transform_vector(&Vector3::new (
+        models[0].mesh.positions[3 * first_index],
+        models[0].mesh.positions[3 * first_index + 1],
+        models[0].mesh.positions[3 * first_index + 2],
+    ));
+    let mut min_pos : Vector3<f32> = first_pos;
+    let mut max_pos : Vector3<f32> = first_pos;
     
     for model in &models {
 
         for i in 0..model.mesh.indices.len() {
             let pi = model.mesh.indices[i] as usize;
+            let pos = correction.transform_vector(&Vector3::new (
+                model.mesh.positions[3 * pi],
+                model.mesh.positions[3 * pi + 1],
+                model.mesh.positions[3 * pi + 2],
+            ));
+            min_pos.x =  min_pos.x.min(pos.x);
+            min_pos.y =  min_pos.y.min(pos.y);
+            min_pos.z =  min_pos.z.min(pos.z);
+
+            max_pos.x =  max_pos.x.max(pos.x);
+            max_pos.y =  max_pos.y.max(pos.y);
+            max_pos.z =  max_pos.z.max(pos.z);
+            
             let ti = model.mesh.texcoord_indices[i] as usize;
             let ni = model.mesh.normal_indices[i] as usize;
-            
             let vertex = Vertex {
 
-                pos: correction.transform_vector(&Vector3::new (
-                    model.mesh.positions[3 * pi],
-                    model.mesh.positions[3 * pi + 1],
-                    model.mesh.positions[3 * pi + 2],
-                )),
+                pos,
                 
                 normal: correction.transform_vector(&Vector3::new (
                     model.mesh.positions[3 * ni],
@@ -255,5 +293,5 @@ fn load_model(path: &str, correction: nalgebra::Matrix4<f32>) -> Result<(Vec<Ver
 
 
 
-    Ok((vertices, indices))
+    Ok((vertices, indices, min_pos, max_pos))
 }
