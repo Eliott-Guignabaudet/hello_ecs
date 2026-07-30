@@ -8,6 +8,11 @@ pub struct GraphicsPipeline{
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
     pub descriptor_set_layout_material: vk::DescriptorSetLayout,
+    
+    pub pipeline_skybox: vk::Pipeline,
+    pub pipeline_layout_skybox: vk::PipelineLayout,
+    pub descriptor_set_layout_skybox: vk::DescriptorSetLayout,
+    
     pub descriptor_pool: vk::DescriptorPool,
     
     device: Arc<Device>
@@ -27,13 +32,19 @@ impl GraphicsPipeline {
         
         let descriptor_set_layout = Self::create_descriptor_set_layout(&device)?;
         let descriptor_set_layout_material = Self::create_descriptor_set_layout_material(&device)?;
-        
-        
-        let (pipeline, pipeline_layout) = Self::create_pipeline(
+        let descriptor_set_layout_skybox = Self::create_descriptor_set_layout_skybox(&device)?;
+
+        let (
+            pipeline,
+            pipeline_layout,
+            pipeline_skybox,
+            pipeline_layout_skybox
+        ) = Self::create_pipeline(
             &device,
             swapchain_extent,
             render_pass,
             &[descriptor_set_layout, descriptor_set_layout_material],
+            &[descriptor_set_layout_skybox],
             vertex_binding_descriptions,
             vertex_attribute_descriptions,
             msaa_samples,
@@ -47,8 +58,11 @@ impl GraphicsPipeline {
         Ok(Self{
             pipeline,
             pipeline_layout,
+            pipeline_skybox,
+            pipeline_layout_skybox,
             descriptor_set_layout,
             descriptor_set_layout_material,
+            descriptor_set_layout_skybox,
             descriptor_pool,
             device,
         })
@@ -90,16 +104,37 @@ impl GraphicsPipeline {
         let handle = unsafe { device.create_descriptor_set_layout(&info, None) }?;
         Ok( handle )
     }
+
+    fn create_descriptor_set_layout_skybox(device: &Device) -> Result<vk::DescriptorSetLayout, Box<dyn Error>> {
+        let ubo_binding = vk::DescriptorSetLayoutBinding::default()
+            .binding(0)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT);
+        let sampler_binding = vk::DescriptorSetLayoutBinding::default()
+            .binding(1)
+            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+        let bindings = &[ubo_binding, sampler_binding];
+        let info = vk::DescriptorSetLayoutCreateInfo::default()
+            .bindings(bindings);
+
+        let handle = unsafe { device.create_descriptor_set_layout(&info, None) }?;
+        Ok( handle )
+    }
     
     fn create_pipeline(
         device: &Device,
         swapchain_extent: vk::Extent2D,
         render_pass: vk::RenderPass,
         set_layouts: &[vk::DescriptorSetLayout],
+        set_layouts_skybox: &[vk::DescriptorSetLayout],
         vertex_binding_descriptions: [vk::VertexInputBindingDescription; 2],
         vertex_attribute_descriptions: [vk::VertexInputAttributeDescription; 8],
         msaa_samples: vk::SampleCountFlags,
-    ) -> Result<(vk::Pipeline, vk::PipelineLayout), Box<dyn Error>> {
+    ) -> Result<(vk::Pipeline, vk::PipelineLayout, vk::Pipeline, vk::PipelineLayout), Box<dyn Error>> {
         let vert = include_bytes!("../../shader/vert.spv");
         let frag = include_bytes!("../../shader/frag.spv");
 
@@ -218,14 +253,75 @@ impl GraphicsPipeline {
             .render_pass(render_pass)
             .subpass(0);
 
-        let pipeline = unsafe {
-            device.create_graphics_pipelines(vk::PipelineCache::null(), &[info], None)
-        }.unwrap()[0];
+
+
+        let vert_skybox = include_bytes!("../../shader/skybox.vert.spv");
+        let frag_skybox = include_bytes!("../../shader/skybox.frag.spv");
+
+        let vert_shader_module_skybox = unsafe { Self::create_shader_module(device, vert_skybox)?};
+        let frag_shader_module_skybox = unsafe { Self::create_shader_module(device, frag_skybox)?};
+
+        let vert_stage_skybox = vk::PipelineShaderStageCreateInfo::default()
+            .stage(vk::ShaderStageFlags::VERTEX)
+            .module(vert_shader_module_skybox)
+            .name(c"main");
+
+        let frag_stage_skybox = vk::PipelineShaderStageCreateInfo::default()
+            .stage(vk::ShaderStageFlags::FRAGMENT)
+            .module(frag_shader_module_skybox)
+            .name(c"main");
+
+        let vertex_input_state_skybox = vk::PipelineVertexInputStateCreateInfo::default()
+            .vertex_binding_descriptions(&vertex_binding_descriptions)
+            .vertex_attribute_descriptions(&vertex_attribute_descriptions);
+
+        let rasterization_state_skybox = vk::PipelineRasterizationStateCreateInfo::default()
+            .depth_clamp_enable(false)
+            .rasterizer_discard_enable(false)
+            .polygon_mode(vk::PolygonMode::FILL)
+            .line_width(1.0)
+            .cull_mode(vk::CullModeFlags::FRONT)
+            .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+            .depth_bias_enable(false);
+        
+        let depth_stencil_state_skybox = vk::PipelineDepthStencilStateCreateInfo::default()
+            .depth_test_enable(true)
+            .depth_write_enable(false)
+            .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
+            .depth_bounds_test_enable(false)
+            .stencil_test_enable(false);
+        
+        let layout_info_skybox = vk::PipelineLayoutCreateInfo::default()
+            .set_layouts(set_layouts_skybox);
+        let pipeline_layout_skybox = unsafe { device.create_pipeline_layout(&layout_info_skybox, None) }?;
+        
+        let stages_skybox = &[vert_stage_skybox, frag_stage_skybox];
+        let skybox_info = vk::GraphicsPipelineCreateInfo::default()
+            .stages(stages_skybox)
+            .vertex_input_state(&vertex_input_state_skybox)
+            .input_assembly_state(&input_assembly_state)
+            .viewport_state(&viewport_state)
+            .rasterization_state(&rasterization_state_skybox)
+            .multisample_state(&multisample_state)
+            .depth_stencil_state(&depth_stencil_state_skybox)
+            .color_blend_state(&color_blend_state)
+            .layout(pipeline_layout_skybox)
+            .render_pass(render_pass)
+            .subpass(0);
+
+
+
+
+        let pipelines = unsafe {
+            device.create_graphics_pipelines(vk::PipelineCache::null(), &[info, skybox_info], None)
+        }.unwrap();
 
         unsafe { device.destroy_shader_module(frag_shader_module, None); }
         unsafe { device.destroy_shader_module(vert_shader_module, None); }
-
-        Ok((pipeline, pipeline_layout))
+        unsafe { device.destroy_shader_module(frag_shader_module_skybox, None); }
+        unsafe { device.destroy_shader_module(vert_shader_module_skybox, None); }
+        
+        Ok((pipelines[0], pipeline_layout, pipelines[1], pipeline_layout_skybox))
     }
 
     unsafe fn create_shader_module(
@@ -276,11 +372,17 @@ impl GraphicsPipeline {
         unsafe { self.device.destroy_pipeline(self.pipeline, None) }
         unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout, None) }
 
-        let (pipeline, pipeline_layout) = Self::create_pipeline(
+        let (
+            pipeline, 
+            pipeline_layout, 
+            pipeline_skybox, 
+            pipeline_layout_skybox,
+        ) = Self::create_pipeline(
             &self.device,
             swapchain_extent,
             render_pass,
             &[self.descriptor_set_layout, self.descriptor_set_layout_material],
+            &[self.descriptor_set_layout_skybox],
             vertex_binding_description,
             vertex_attribute_descriptions,
             msaa_samples,
@@ -288,6 +390,8 @@ impl GraphicsPipeline {
         
         self.pipeline = pipeline;
         self.pipeline_layout = pipeline_layout;
+        self.pipeline_skybox = pipeline_skybox;
+        self.pipeline_layout_skybox = pipeline_layout_skybox;
         
         Ok(())
     }
@@ -296,6 +400,10 @@ impl GraphicsPipeline {
 impl Drop for GraphicsPipeline {
     fn drop(&mut self) {
         unsafe { self.device.destroy_descriptor_pool(self.descriptor_pool, None) }
+        unsafe { self.device.destroy_pipeline(self.pipeline_skybox, None) }
+        unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout_skybox, None) }
+        unsafe { self.device.destroy_descriptor_set_layout(self.descriptor_set_layout_skybox, None) }
+
         unsafe { self.device.destroy_pipeline(self.pipeline, None) }
         unsafe { self.device.destroy_pipeline_layout(self.pipeline_layout, None) }
         unsafe { self.device.destroy_descriptor_set_layout(self.descriptor_set_layout_material, None) }
